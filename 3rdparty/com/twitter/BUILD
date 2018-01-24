@@ -6,7 +6,8 @@ def make_lib(name, rev, excludes=[]):
   jar_library(name=name,
     jars=[
       scala_jar(org=ORG, name=name, rev=rev, excludes=excludes)
-    ]
+    ],
+    scope="forced",
   )
 
 make_lib('bijection-util', Versions.get('Twitter.bijection'))

@@ -4,3 +4,4 @@ import Versions
 
 alias(name='scala-compiler', target='3rdparty/org/scala-lang:scala-compiler-tool')
 alias(name='scala-library', target='3rdparty/org/scala-lang:scala-library-tool')
+

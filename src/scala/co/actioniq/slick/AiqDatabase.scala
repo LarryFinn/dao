@@ -1,14 +1,12 @@
 package co.actioniq.slick
 
-import co.actioniq.functional.AiqLogger
 import co.actioniq.slick.logging.TransactionLogger
 import slick.jdbc.JdbcBackend.Database
 
 import scala.concurrent.ExecutionContext
-import scala.util.{Failure, Success}
 
 class AiqDatabase(val self: Database, val transactionLogger: TransactionLogger)
-  extends Proxy with AiqLogger {
+  extends Proxy {
   def run[R](a: slick.dbio.DBIOAction[R, slick.dbio.NoStream, scala.Nothing])(implicit ec: ExecutionContext):
   scala.concurrent.Future[R] = {
     self.run(a).transform(result => {

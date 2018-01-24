@@ -12,10 +12,3 @@ trait DAOHook[V] {
   def processPostUpdate(input: V): V = input
 }
 
-/**
-  * Class for thrift hooks
-  * @tparam U thrift type
-  */
-trait DAOThriftHook[U] extends DAOHook[U] {
-  type IdStruct = U {def id: Option[Long]} // scalastyle:ignore
-}

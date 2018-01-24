@@ -20,13 +20,9 @@ PANTS_BOOTSTRAP="${PANTS_HOME}/bootstrap-$(uname -s)-$(uname -m)"
 
 VENV_VERSION=15.0.2
 
-ACTIONIQ_REQUIREMENTS="build-support/versions/pants-requirements.txt"
-# This is relative to the pants dir, will recursively copy anything to bootstrap dir
-PANTS_PATCHES="build-support/pants-patches"
-
 # This requirement is installed before pantsbuild.pants to hack around
 # interpreters that have newer setuptools already installed, effectively
-# re-installing an older setuptools and pinning low to a version known to be
+# re-installing an older setuptools and pinning low to a version known to be 
 # ingestable by both pants and pex for all reasonable versions of pants.
 # See:
 #   https://github.com/pantsbuild/pants/issues/3948
@@ -51,7 +47,6 @@ function tempdir {
 
 # TODO(John Sirois): GC race loser tmp dirs leftover from bootstrap_XXX
 # functions.  Any tmp dir w/o a symlink pointing to it can go.
-
 
 function bootstrap_venv {
   if [[ ! -d "${PANTS_BOOTSTRAP}/${VENV_PACKAGE}" ]]
@@ -89,55 +84,19 @@ function bootstrap_pants {
       # ${SETUPTOOLS_REQUIREMENT} wins.
       venv_path="$(bootstrap_venv)" && \
       staging_dir=$(tempdir "${PANTS_BOOTSTRAP}") && \
-
-      # Setup virtualenv
       "${PYTHON}" "${venv_path}/virtualenv.py" --no-setuptools --no-download \
         "${staging_dir}/install" && \
-
-      # Pip install setup tools
       "${staging_dir}/install/bin/python" \
         "${staging_dir}/install/bin/pip" install \
           "${SETUPTOOLS_REQUIREMENT}" && \
-
-      # Pip install pants reqs
       "${staging_dir}/install/bin/python" \
         "${staging_dir}/install/bin/pip" install \
           "${pants_requirement}" && \
-
-      # Pip install AIQ reqs
-      "${staging_dir}/install/bin/python" \
-        "${staging_dir}/install/bin/pip" install -r \
-          "${ACTIONIQ_REQUIREMENTS}" && \
-
       ln -s "${staging_dir}/install" "${staging_dir}/${pants_version}" && \
       mv "${staging_dir}/${pants_version}" "${PANTS_BOOTSTRAP}/${pants_version}"
     ) 1>&2
   fi
   echo "${PANTS_BOOTSTRAP}/${pants_version}"
 }
-
-if [[ -n ${PANTS_DIR} ]]; then
-  python_path=''
-  for contrib in ${PANTS_DIR}/contrib/*/src/python; do
-    if [[ -n $python_path ]]; then
-      python_path=$python_path:$contrib
-    else
-      python_path=$contrib
-    fi
-  done
-
-  export WRAPPER_REQUIREMENTS=${ACTIONIQ_REQUIREMENTS}
-  export WRAPPER_SRCPATH=${python_path}
-  export PYTHONPATH=${python_path}
-
-  echo "Running dev version of pants from ${PANTS_DIR}/pants"
-  exec "${PANTS_DIR}/pants" $@
-else
-  pants_dir=$(bootstrap_pants)
-  echo "pants bootstrap directory: ${pants_dir}"
-
-  # AIQ-6238: apply patches and verify scrooge-gen works
-  # /bin/cp -Rf ./${PANTS_PATCHES}/* ${pants_dir}
-
-  exec "${pants_dir}/bin/python" "${pants_dir}/bin/pants" "$@"
-fi
+pants_dir=$(bootstrap_pants) && \
+exec "${pants_dir}/bin/python" "${pants_dir}/bin/pants" "$@"

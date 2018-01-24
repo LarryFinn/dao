@@ -10,6 +10,7 @@
     "junit-runner-annotations": "0.0.18"
   },
   "java": "1.8",
+  "play": "2.4.11",
   "scala": "2.11.8",
   "logback": "1.1.3",
   "slf4j": "1.7.15",

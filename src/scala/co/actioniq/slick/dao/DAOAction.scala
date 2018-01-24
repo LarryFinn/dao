@@ -1,10 +1,6 @@
 package co.actioniq.slick.dao
 
-import co.actioniq.slick.AiqDriver
 import co.actioniq.slick.logging.{LoggingModel, TransactionAction, TransactionLogger}
-import co.actioniq.thrift.ServiceException
-import com.twitter.scrooge.ThriftStruct
-import play.api.libs.json.{Json, Writes}
 
 import scala.concurrent.ExecutionContext
 import scala.util.{Failure, Success}
@@ -17,9 +13,9 @@ import scala.util.{Failure, Success}
   */
 trait DAOAction[T <: DAOTable[V, I], V <: IdModel[I], I <: IDType]
   extends DAOQuery[T, V, I] with DAOHook[V] with DAOActionValidate[V] {
-  protected val driver: AiqDriver // scalastyle:ignore
+  protected val profile: AiqProfile // scalastyle:ignore
   val transactionLogger: TransactionLogger
-  import driver.api._ // scalastyle:ignore
+  import profile.api._ // scalastyle:ignore
 
   /**
     * Perform read with join
@@ -115,20 +111,20 @@ trait DAOAction[T <: DAOTable[V, I], V <: IdModel[I], I <: IDType]
     * Perform action to read object by id, throw exception if not found
     * @param id id of object
     * @param ec
-    * @return dbioaction of model or failure with ServiceException
+    * @return dbioaction of model or failure with DAOException
     */
   protected def readByIdRequiredAction(id: I)(implicit ec: ExecutionContext):
   DBIOAction[T#TableElementType, NoStream, Effect.Read]= {
     readByIdQuery(id).result
-      .map(_.headOption.getOrElse(throw new ServiceException(s"Unknown $nameSingle id: id")))
+      .map(_.headOption.getOrElse(throw new DAOException(s"Unknown $nameSingle id: id")))
   }
 
   /**
     * Perform action to read object by set of ids, throw exception if any not found
     * @param id set of ids
     * @param ec
-    * @throws ServiceException if any id is invalid
-    * @return dbioaction of sequence of model or failure with ServiceException
+    * @throws DAOException if any id is invalid
+    * @return dbioaction of sequence of model or failure with DAOException
     */
   protected def readByIdRequiredAction(id: Set[I])(implicit ec: ExecutionContext):
   DBIOAction[Seq[T#TableElementType], NoStream, Effect.Read]= {
@@ -139,7 +135,7 @@ trait DAOAction[T <: DAOTable[V, I], V <: IdModel[I], I <: IDType]
         true
       } else {
           val outputIds = objects.map(_.id).toSet
-          throw new ServiceException(s"Unkonwn $nameSingle id: ${id.diff(outputIds)}")
+          throw new DAOException(s"Unkonwn $nameSingle id: ${id.diff(outputIds)}")
       }
     } yield objects
   }
@@ -252,7 +248,7 @@ trait DAOAction[T <: DAOTable[V, I], V <: IdModel[I], I <: IDType]
       }
       case Failure(th) => th match {
         case ex: FormValidatorExceptions =>
-          throw new ServiceException(message = ex.errors.head.message, code = ex.errors.head.code,
+          throw new DAOException(message = ex.errors.head.message, code = ex.errors.head.code,
             klass = Some(classOf[FormValidatorExceptions].getName))
         case ex: Throwable => throw ex
       }
@@ -296,7 +292,7 @@ trait DAOAction[T <: DAOTable[V, I], V <: IdModel[I], I <: IDType]
       }
       case Failure(th) => th match {
         case ex: FormValidatorExceptions =>
-          throw new ServiceException(message = ex.errors.head.message, code = ex.errors.head.code,
+          throw new DAOException(message = ex.errors.head.message, code = ex.errors.head.code,
             klass = Some(classOf[FormValidatorExceptions].getName))
         case ex: Throwable => throw ex
       }
@@ -500,44 +496,11 @@ trait DAOAction[T <: DAOTable[V, I], V <: IdModel[I], I <: IDType]
   }
 
 
-  protected def addCreateTransaction(id: I, input: V): Unit = {
-    implicit val modelWrites = input.daoModelWrites.asInstanceOf[Writes[V]]
-    transactionLogger.write(LoggingModel.fromDAO[V](
-      context,
-      input.getClass,
-      id.toString,
-      TransactionAction.create,
-      None,
-      Some(input),
-      context.source
-    ))
-  }
+  protected def addCreateTransaction(id: I, input: V): Unit
 
-  protected def addUpdateTransaction(id: I, input: V, original: V): Unit = {
-    implicit val modelWrites = input.daoModelWrites.asInstanceOf[Writes[V]]
-    transactionLogger.write(LoggingModel.fromDAO[V](
-      context,
-      input.getClass,
-      id.toString,
-      TransactionAction.update,
-      Some(original),
-      Some(input),
-      context.source
-    ))
-  }
+  protected def addUpdateTransaction(id: I, input: V, original: V): Unit
 
-  protected def addDeleteTransaction(id: I, original: V): Unit = {
-    implicit val modelWrites = original.daoModelWrites.asInstanceOf[Writes[V]]
-    transactionLogger.write(LoggingModel.fromDAO[V](
-      context,
-      original.getClass,
-      id.toString,
-      TransactionAction.delete,
-      Some(original),
-      None,
-      context.source
-    ))
-  }
+  protected def addDeleteTransaction(id: I, original: V): Unit
 }
 
 /**
@@ -546,8 +509,8 @@ trait DAOAction[T <: DAOTable[V, I], V <: IdModel[I], I <: IDType]
   * @tparam V model / slick case class
   */
 trait DAOActionValidate[V] {
-  protected val driver: AiqDriver
-  import driver.api._ // scalastyle:ignore
+  protected val profile: AiqProfile
+  import profile.api._ // scalastyle:ignore
   /**
     * Validate create
     * @param input input to validate
@@ -591,35 +554,6 @@ trait DAOActionValidate[V] {
       case FormValidatorMessageSeq(Seq()) => Unit
       case items: FormValidatorMessageSeq => throw new FormValidatorExceptions(items)
     }
-  }
-}
-
-/**
-  * Mixin trait to override create action to also update thrift object with id
-  * @tparam T slick table, extends aiqtable
-  * @tparam V case class to store result set rows
-  * @tparam U Thrift object type
-  * @tparam I id type (option long and uuid)
-  */
-trait DAOActionWithThrift[T <: DAOTable[V, I], V <: IdModel[I], U <: ThriftStruct, I <: IDType]
-  extends DAOAction[T, V, I]
-  with DAOThrift[V, U] {
-  import driver.api._ // scalastyle:ignore
-  /**
-    * Performs a create and then updates the thrift to have the new id... mostly for autoinc
-    * @param input object to create
-    * @param toValidate run validation on input
-    * @param ec
-    * @return ID of object inserted
-    */
-  override protected def createAction(input: V, toValidate: Boolean = true)(implicit ec: ExecutionContext):
-  DBIOAction[I, NoStream, Effect.Read with Effect.Write] = {
-    for {
-      id <- super.createAction(input, toValidate)
-      row <- readByIdAction(id).map(_.get)
-      thrift = toThrift(row)
-      update <- updateAction(toPersisted(context, thrift), false, Some(row))
-    } yield id
   }
 }
 

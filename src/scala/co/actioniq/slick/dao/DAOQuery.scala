@@ -1,8 +1,7 @@
 package co.actioniq.slick.dao
 
 
-import co.actioniq.slick.AiqDriver
-import co.actioniq.thrift.Context
+import slick.jdbc.JdbcProfile
 
 import scala.concurrent.ExecutionContext
 
@@ -14,9 +13,8 @@ import scala.concurrent.ExecutionContext
   */
 trait DAOQuery[T <: DAOTable[V, I], V <: IdModel[I], I <: IDType]
   extends DefaultFilter[T, V, I] with IdQuery[T, V, I]{
-  protected val driver: AiqDriver
-  protected val context: Context
-  import driver.api._ // scalastyle:ignore
+  protected val profile: AiqProfile
+  import profile.api._ // scalastyle:ignore
 
   //Name of object, used for generic error messages like in update "id does not exist for $nameSingle"
   def nameSingle: String
@@ -87,8 +85,8 @@ trait DAOQuery[T <: DAOTable[V, I], V <: IdModel[I], I <: IDType]
   ):
   QueryLeftJoin[A, B] = {
     extraQueryOps(
-      slickQuery.joinLeft(other.getSlickQuery).on((mine, theirs) => on(mine, theirs))
-        .filter(f => getDefaultFilters(f._1) && f._2.flatMap(theirs => other.getDefaultFilters(theirs)))
+      slickQuery.joinLeft(other.getSlickQuery).on((mine, theirs) => on(mine, theirs) && other.getDefaultFilters(theirs))
+        .filter(f => getDefaultFilters(f._1))
     )
   }
 
@@ -153,9 +151,8 @@ trait DAOQuery[T <: DAOTable[V, I], V <: IdModel[I], I <: IDType]
   */
 trait IdQuery[T <: DAOTable[V, I], V <: IdModel[I], I <: IDType]
   extends DefaultFilter[T, V, I] {
-  protected val driver: AiqDriver
-  protected val context: Context
-  import driver.api._ // scalastyle:ignore
+  protected val profile: JdbcProfile
+  import profile.api._ // scalastyle:ignore
 
   /**
     * Query to filter id = something
@@ -203,12 +200,11 @@ trait IdQuery[T <: DAOTable[V, I], V <: IdModel[I], I <: IDType]
   * @tparam V case class to store result set rows
   */
 trait DAOLongIdQuery[T <: DAOTable[V, DbLongOptID], V <: IdModel[DbLongOptID]]
-  extends IdQuery[T, V, DbLongOptID]{
-  protected val driver: AiqDriver
-  protected val context: Context
-  import driver.api._ // scalastyle:ignore
+  extends IdQuery[T, V, DbLongOptID] with JdbcAiqTypes {
+  protected val profile: JdbcProfile
+  import profile.api._ // scalastyle:ignore
 
-  protected implicit val dbOptLongJdbcType = new OptLongJdbcType
+  protected implicit val dbOptLongJdbcType = optLongJdbcType
 
   /**
     * Filter id equals DbLongOptID
@@ -261,13 +257,11 @@ trait DAOLongIdQuery[T <: DAOTable[V, DbLongOptID], V <: IdModel[DbLongOptID]]
   * @tparam V case class to store result set rows
   */
 trait DAOUUIDQuery[T <: DAOTable[V, DbUUID], V <: IdModel[DbUUID]]
-  extends IdQuery[T, V, DbUUID]{
-  protected val driver: AiqDriver
-  protected val context: Context
-  import driver.api._ // scalastyle:ignore
+  extends IdQuery[T, V, DbUUID] with JdbcAiqTypes {
+  protected val profile: JdbcProfile
+  import profile.api._ // scalastyle:ignore
 
-  import slick.driver.MySQLDriver.DriverJdbcType // scalastyle:ignore
-  implicit val dbUuidJdbcType = new UUIDJdbcType
+  implicit val dbUuidJdbcType = uuidJdbcType
 
   /**
     * Filter id equals UUID
