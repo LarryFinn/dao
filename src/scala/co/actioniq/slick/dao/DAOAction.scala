@@ -1,6 +1,7 @@
 package co.actioniq.slick.dao
 
-import co.actioniq.slick.logging.{LoggingModel, TransactionAction, TransactionLogger}
+import co.actioniq.slick.SlickProfile
+import slick.jdbc.JdbcProfile
 
 import scala.concurrent.ExecutionContext
 import scala.util.{Failure, Success}
@@ -11,10 +12,9 @@ import scala.util.{Failure, Success}
   * @tparam V case class to store result set rows
   * @tparam I id type (option long and uuid)
   */
-trait DAOAction[T <: DAOTable[V, I], V <: IdModel[I], I <: IDType]
-  extends DAOQuery[T, V, I] with DAOHook[V] with DAOActionValidate[V] {
-  protected val profile: AiqProfile // scalastyle:ignore
-  val transactionLogger: TransactionLogger
+trait DAOAction[T <: DAOTable.Table[V, I, P], V <: DAOModel[I], I <: IdType, P <: JdbcProfile]
+  extends DAOQuery[T, V, I, P] with DAOHook[V] with DAOActionValidate[V] {
+  protected val profile: SlickProfile // scalastyle:ignore
   import profile.api._ // scalastyle:ignore
 
   /**
@@ -27,9 +27,9 @@ trait DAOAction[T <: DAOTable[V, I], V <: IdModel[I], I <: IDType]
     * @tparam C type of other idtype
     * @return action of join query
     */
-  protected def readJoinAction[A <: DAOTable[B, C], B <: IdModel[C], C <: IDType]
+  protected def readJoinAction[A <: DAOTable.Table[B, C, P], B <: DAOModel[C], C <: IdType]
   (
-    other: DAOAction[A, B, C],
+    other: DAOAction[A, B, C, P],
     on: (T, A) => Rep[Option[Boolean]],
     extraQueryOps: QueryJoin[A, B] => QueryJoin[A, B] = (query: QueryJoin[A, B]) => query
   ):
@@ -38,12 +38,12 @@ trait DAOAction[T <: DAOTable[V, I], V <: IdModel[I], I <: IDType]
     joinQuery[A, B, C](other, (mine, theirs) => on(mine, theirs), extraQueryOps).result
   }
 
-  protected def readJoinActionTwo[A <: DAOTable[B, C], B <: IdModel[C], C <: IDType,
-  AA <: DAOTable[BB, CC], BB <: IdModel[CC], CC <: IDType]
+  protected def readJoinActionTwo[A <: DAOTable.Table[B, C, P], B <: DAOModel[C], C <: IdType,
+  AA <: DAOTable.Table[BB, CC, P], BB <: DAOModel[CC], CC <: IdType]
   (
-    otherFirst: DAOAction[A, B, C],
+    otherFirst: DAOAction[A, B, C, P],
     onFirst: (T, A) => Rep[Option[Boolean]],
-    otherSecond: DAOAction[AA, BB, CC],
+    otherSecond: DAOAction[AA, BB, CC, P],
     onSecond: (T, A, AA) => Rep[Option[Boolean]],
     extraQueryOps: QueryJoinTwo[A, B, AA, BB] => QueryJoinTwo[A, B, AA, BB]
       = (query: QueryJoinTwo[A, B, AA, BB]) => query
@@ -68,9 +68,9 @@ trait DAOAction[T <: DAOTable[V, I], V <: IdModel[I], I <: IDType]
     * @tparam C type of other idtype
     * @return action to do left join, "other" piece is option to return
     */
-  protected def readLeftJoinAction[A <: DAOTable[B, C], B <: IdModel[C], C <: IDType]
+  protected def readLeftJoinAction[A <: DAOTable.Table[B, C, P], B <: DAOModel[C], C <: IdType]
   (
-    other: DAOAction[A, B, C],
+    other: DAOAction[A, B, C, P],
     on: (T, A) => Rep[Option[Boolean]],
     extraQueryOps: QueryLeftJoin[A, B] => QueryLeftJoin[A, B] = (query: QueryLeftJoin[A, B]) => query
   ):
@@ -93,9 +93,9 @@ trait DAOAction[T <: DAOTable[V, I], V <: IdModel[I], I <: IDType]
     * @tparam Z return type, typically Seq[(A, Seq[B])]
     * @return
     */
-  protected def readWithChildAction[A <: DAOTable[B, C], B <: IdModel[C], C <: IDType, Z]
+  protected def readWithChildAction[A <: DAOTable.Table[B, C, P], B <: DAOModel[C], C <: IdType, Z]
   (
-    other: DAOAction[A, B, C],
+    other: DAOAction[A, B, C, P],
     filterChildOn: (Seq[V], A) => Rep[Option[Boolean]],
     merge: (Seq[V], Seq[B]) => Seq[Z],
     extraQueryOps: (QueryWithFilter)=> QueryWithFilter = (query) => query
@@ -496,10 +496,26 @@ trait DAOAction[T <: DAOTable[V, I], V <: IdModel[I], I <: IDType]
   }
 
 
+  /**
+    * Add to transaction log a create operation
+    * @param id id of object
+    * @param input input
+    */
   protected def addCreateTransaction(id: I, input: V): Unit
 
+  /**
+    * Add to transaction log an update operation
+    * @param id id of object
+    * @param input new object
+    * @param original original object
+    */
   protected def addUpdateTransaction(id: I, input: V, original: V): Unit
 
+  /**
+    * Add to transaction log a delete operation
+    * @param id id of object
+    * @param original original object
+    */
   protected def addDeleteTransaction(id: I, original: V): Unit
 }
 
@@ -509,7 +525,7 @@ trait DAOAction[T <: DAOTable[V, I], V <: IdModel[I], I <: IDType]
   * @tparam V model / slick case class
   */
 trait DAOActionValidate[V] {
-  protected val profile: AiqProfile
+  protected val profile: SlickProfile
   import profile.api._ // scalastyle:ignore
   /**
     * Validate create

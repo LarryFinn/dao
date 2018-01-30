@@ -1,16 +1,12 @@
 package co.actioniq.slick.dao
 
-import co.actioniq.slick.{AiqDatabase, AiqDriver, OptLongCompare, OptionCompareOption, UUIDCompare}
+
+import co.actioniq.slick.{AiqDatabase, OptLongCompare, OptionCompareOption, UUIDCompare}
 import co.actioniq.slick.dao.Implicit.scalaToTwitterConverter
-import co.actioniq.slick.logging.TransactionLogger
-import co.actioniq.thrift.Context
-import com.twitter.scrooge.ThriftStruct
 import com.twitter.util.Future
-import slick.jdbc.JdbcBackend.Database
+import slick.jdbc.{H2Profile, JdbcProfile, MySQLProfile, PostgresProfile}
 
 import scala.concurrent.ExecutionContext
-import scala.concurrent.ExecutionContext.Implicits.global
-import scala.util.{Failure, Success}
 
 /**
   * Top of the DAO traits, this actually runs the actions in a transaction.  Most functions return a twitter future
@@ -18,17 +14,16 @@ import scala.util.{Failure, Success}
   * @tparam V case class to store result set rows
   * @tparam I id type (option long and uuid)
   */
-trait DAO[T <: DAOTable[V, I], V <: IdModel[I], I <: IDType]
-  extends DAOAction[T, V, I] {
+trait DAO[T <: DAOTable.Table[V, I, P], V <: DAOModel[I], I <: IdType, P <: JdbcProfile]
+  extends DAOAction[T, V, I, P] {
 
   protected val db: AiqDatabase
+  protected implicit val ec: ExecutionContext
 
-  override val transactionLogger: TransactionLogger = db.transactionLogger
-
-  import driver.api._ // scalastyle:ignore
+  import profile.api._ // scalastyle:ignore
 
   implicit def uuidCompare(e: Rep[DbUUID]): UUIDCompare = OptionCompareOption.uuidCompare(e)
-  implicit def optLongCompare(e: Rep[DbLongOptID]): OptLongCompare = OptionCompareOption.optLongCompare(e)
+  implicit def optLongCompare(e: Rep[DbLongOptId]): OptLongCompare = OptionCompareOption.optLongCompare(e)
 
   /**
     * Wrapper for running a trx.... SOON WE CAN PUT SOME AUDIT LOGGING IN
@@ -50,9 +45,9 @@ trait DAO[T <: DAOTable[V, I], V <: IdModel[I], I <: IDType]
     * @tparam C type of other idtype
     * @return Future of Seq of (mine, theirs)
     */
-  def readJoin[A <: DAOTable[B, C], B <: IdModel[C], C <: IDType]
+  def readJoin[A <: DAOTable.Table[B, C, P], B <: DAOModel[C], C <: IdType]
   (
-    other: DAO[A, B, C],
+    other: DAO[A, B, C, P],
     on: (T, A) => Rep[Option[Boolean]],
     extraQueryOps: QueryJoin[A, B] => QueryJoin[A, B] = (query: QueryJoin[A, B]) => query
   ): Future[Seq[(T#TableElementType, A#TableElementType)]]
@@ -60,16 +55,16 @@ trait DAO[T <: DAOTable[V, I], V <: IdModel[I], I <: IDType]
     runTransaction(readJoinAction[A, B, C](other, on, extraQueryOps))
   }
 
-  def readJoinTwo[A <: DAOTable[B, C], B <: IdModel[C], C <: IDType,
-  AA <: DAOTable[BB, CC], BB <: IdModel[CC], CC <: IDType]
+  def readJoinTwo[A <: DAOTable.Table[B, C, P], B <: DAOModel[C], C <: IdType,
+  AA <: DAOTable.Table[BB, CC, P], BB <: DAOModel[CC], CC <: IdType]
   (
-    otherFirst: DAO[A, B, C],
+    otherFirst: DAO[A, B, C, P],
     onFirst: (T, A) => Rep[Option[Boolean]],
-    otherSecond: DAO[AA, BB, CC],
+    otherSecond: DAO[AA, BB, CC, P],
     onSecond: (T, A, AA) => Rep[Option[Boolean]],
     extraQueryOps: QueryJoinTwo[A, B, AA, BB] => QueryJoinTwo[A, B, AA, BB]
       = (query: QueryJoinTwo[A, B, AA, BB]) => query
-  ) (implicit ec: ExecutionContext): Future[Seq[(T#TableElementType, A#TableElementType, AA#TableElementType)]]
+  ): Future[Seq[(T#TableElementType, A#TableElementType, AA#TableElementType)]]
   = {
     runTransaction(readJoinActionTwo[A, B, C, AA, BB, CC](
       otherFirst,
@@ -89,8 +84,8 @@ trait DAO[T <: DAOTable[V, I], V <: IdModel[I], I <: IDType]
     * @tparam C type of other idtype
     * @return future of Seq of (min, option(theirs))
     */
-  def readLeftJoin[A <: DAOTable[B, C], B <: IdModel[C], C <: IDType]
-  (other: DAO[A, B, C], on: (T, A) => Rep[Option[Boolean]]):
+  def readLeftJoin[A <: DAOTable.Table[B, C, P], B <: DAOModel[C], C <: IdType]
+  (other: DAO[A, B, C, P], on: (T, A) => Rep[Option[Boolean]]):
   Future[Seq[(T#TableElementType, Option[A#TableElementType])]]
   = {
     runTransaction(readLeftJoinAction[A, B, C](other, on))
@@ -124,9 +119,9 @@ trait DAO[T <: DAOTable[V, I], V <: IdModel[I], I <: IDType]
     * @tparam Z return type, for example Seq[(V, Seq[B])]
     * @return
     */
-  def readWithChild[A <: DAOTable[B, C], B <: IdModel[C], C <: IDType, Z]
+  def readWithChild[A <: DAOTable.Table[B, C, P], B <: DAOModel[C], C <: IdType, Z]
   (
-    other: DAO[A, B, C],
+    other: DAO[A, B, C, P],
     filterChildOn: (Seq[V], A) => Rep[Option[Boolean]],
     merge: (Seq[V], Seq[B]) => Seq[Z],
     extraQueryOps: (QueryWithFilter)=> QueryWithFilter = (query) => query
@@ -341,103 +336,8 @@ trait DAO[T <: DAOTable[V, I], V <: IdModel[I], I <: IDType]
   }
 }
 
-/**
-  * Common class that has an Option[Long] id with customer_id and some thrift object
-  * @param toThrift function to convert from persisted to thrift
-  * @param toPersisted function to convert from thrift to persisted
-  * @tparam T slick table, extends aiqtable
-  * @tparam V case class to store result set rows
-  * @tparam U Thrift object type
-  */
-abstract class CommonDAOLongId[T <: LongIdCustomerTable[V],
-V <: IdModel[DbLongOptID],
-U <: ThriftStruct] (
-  override val toThrift: V => U,
-  override val toPersisted: (Context, U) => V
-) extends DAO[T, V, DbLongOptID]
-  with DAOLongIdQuery[T, V]
-  with DAOActionWithThrift[T, V, U, DbLongOptID]
-  with FilterContext[T, V, DbLongOptID] {
+trait MySQLDAO[T <: MySQLDAOTable[V, I], V <: DAOModel[I], I <: IdType] extends DAO[T, V, I, MySQLProfile]
 
-  //Easy access point for thrift functions
-  val thrift = new DAOThriftHelperLong(context, driver, db, toThrift, toPersisted)
+trait PostgresDAO[T <: PostgresDAOTable[V, I], V <: DAOModel[I], I <: IdType] extends DAO[T, V, I, PostgresProfile]
 
-  /**
-    * Helper class to perform functions consuming and returning thrift objects
-    * @param context users context
-    * @param driver database driver
-    * @param db database
-    * @param toThrift function to convert from persisted to thrift
-    * @param toPersisted function to convert from thrift to persisted
-    */
-  class DAOThriftHelperLong
-  (
-    override val context: Context,
-    driver: AiqDriver,
-    db: Database,
-    override val toThrift: V => U,
-    override val toPersisted: (Context, U) => V
-  )
-    extends DAOThriftHelper[T, V, U, DbLongOptID]{
-    type IdStruct = U {def id: Option[Long]} // scalastyle:ignore
-
-    /**
-      * Save a sequence of thrift objects in a trx and return the objects.  Handle create vs update
-      * @param input sequence of thrift objects
-      * @param ec
-      * @return future of sequence of thrift objects stored
-      */
-    def save(input: Seq[IdStruct])(implicit ec: ExecutionContext): Future[Seq[U]] = {
-      val ids = input.map(item => DbLongOptID(item.id)).toSet
-      val actionOutput = for {
-        existingIds <- dao.readByIdAction(ids)
-        toCreate = input.filter(item => !existingIds.contains(item.id)).map(item => toPersisted(context, item))
-        toUpdate = input.filter(item => existingIds.contains(item.id)).map(item => toPersisted(context, item))
-        create <- dao.createAction(toCreate, true)
-        update <- dao.updateAction(toUpdate, true, Seq())
-        results <- dao.readByIdAction(ids)
-      } yield results.map(toThrift)
-      runTransaction(actionOutput)
-    }
-
-    /**
-      * Save a single thrift object and return object.  Handle create vs update
-      * @param input thrift object
-      * @param ec
-      * @return future of thrift object stored
-      */
-    def save(input: IdStruct)(implicit ec: ExecutionContext): Future[U] = {
-      save(Seq(input)).map(_.head)
-    }
-
-    //Expose DAO to helper
-    override val dao: CommonDAOLongId[T, V, U] = CommonDAOLongId.this
-  }
-
-}
-
-
-/**
-  * Common DAO class with UUID
-  * @param context users context
-  * @param db database
-  * @param driver db driver
-  * @tparam T slick table, extends aiqtable
-  * @tparam V case class to store result set rows
-  */
-abstract class CommonDAOUUIDNoThrift[T <: UUIDCustomerTable[V], V <: IdModel[DbUUID]] (
-  override protected val context: Context,
-  protected val db: AiqDatabase,
-  override protected val driver: AiqDriver
-) extends DAO[T, V, DbUUID]
-  with DAOUUIDQuery[T, V] with FilterContext[T, V, DbUUID]
-
-/**
-  * Common DAO class with option[long] id but no generic thrift column
-  * @tparam T slick table, extends aiqtable
-  * @tparam V case class to store result set rows
-  */
-abstract class CommonDAOLongIdNoThrift[T <: LongIdCustomerTable[V], V <: IdModel[DbLongOptID]]
- extends DAO[T, V, DbLongOptID]
-  with DAOLongIdQuery[T, V] with FilterContext[T, V, DbLongOptID]
-
+trait H2DAO[T <: H2DAOTable[V, I], V <: DAOModel[I], I <: IdType] extends DAO[T, V, I, H2Profile]

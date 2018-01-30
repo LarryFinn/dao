@@ -1,9 +1,10 @@
 package co.actioniq.slick.dao
 
 case class DAOException(
-  private val message: String,
-  private val cause: Throwable = None.orNull,
+  message: String = "",
+  cause: Throwable = None.orNull,
+  code: Option[String] = None,
   klass: Option[String] = None,
-  code: Option[String] = None
-) extends Exception(message, cause) {
-}
+  file: Option[String] = None,
+  line: Option[Int] = None
+) extends Exception(message, cause)

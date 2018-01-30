@@ -5,14 +5,14 @@ import java.util.UUID
 /**
   * Defines the type of id that a table will have.  Right now we have some with Option[Long] and some with UUID
   */
-trait IDType {
+trait IdType {
   /**
     * Typical option getOrElse but will work on any IdType
     * @param default default value if the id is not defined
     * @tparam B
     * @return
     */
-  @inline def getOrElse[B <: IDType](default: => B): IDType
+  @inline def getOrElse[B <: IdType](default: => B): IdType
 
   /**
     * Specifies if the id value is defined
@@ -25,14 +25,14 @@ trait IDType {
   * IdType that represents an id of Option[Long]
   * @param value underlying value (Option[Long])
   */
-case class DbLongOptID(value: Option[Long]) extends IDType {
+case class DbLongOptId(value: Option[Long]) extends IdType {
   /**
     *
     * @param default default value if the id is not defined
     * @tparam B
     * @return
     */
-  @inline override def getOrElse[B <: IDType](default: => B): IDType = value match {
+  @inline override def getOrElse[B <: IdType](default: => B): IdType = value match {
     case Some(_) => this
     case None => default
   }
@@ -52,14 +52,14 @@ case class DbLongOptID(value: Option[Long]) extends IDType {
   override def toString: String = value.map(_.toString).orNull
 }
 
-object DbLongOptID {
+object DbLongOptId {
   /**
     * Helper function to create a DbLongOptId from a Long
     * @param value id value
     * @return
     */
-  def apply(value: Long): DbLongOptID = {
-    DbLongOptID(Option(value))
+  def apply(value: Long): DbLongOptId = {
+    DbLongOptId(Option(value))
   }
 }
 
@@ -67,7 +67,7 @@ object DbLongOptID {
   * IdType that represents a UUID stored as an array[byte] / binary
   * @param binValue array[byte] representing the UUID
   */
-case class DbUUID(binValue: Array[Byte]) extends IDType {
+case class DbUUID(binValue: Array[Byte]) extends IdType {
   /**
     * Convert array[byte] to typical string representation of UUID
     * @return
@@ -95,7 +95,7 @@ case class DbUUID(binValue: Array[Byte]) extends IDType {
     * @tparam B
     * @return
     */
-  @inline override def getOrElse[B <: IDType](default: => B): IDType = this
+  @inline override def getOrElse[B <: IdType](default: => B): IdType = this
 
   /**
     * Always true

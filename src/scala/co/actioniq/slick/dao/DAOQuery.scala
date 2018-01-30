@@ -1,6 +1,7 @@
 package co.actioniq.slick.dao
 
 
+import co.actioniq.slick.SlickProfile
 import slick.jdbc.JdbcProfile
 
 import scala.concurrent.ExecutionContext
@@ -11,9 +12,9 @@ import scala.concurrent.ExecutionContext
   * @tparam V case class to store result set rows
   * @tparam I id type (option long and uuid)
   */
-trait DAOQuery[T <: DAOTable[V, I], V <: IdModel[I], I <: IDType]
-  extends DefaultFilter[T, V, I] with IdQuery[T, V, I]{
-  protected val profile: AiqProfile
+trait DAOQuery[T <: DAOTable.Table[V, I, P], V <: DAOModel[I], I <: IdType, P <: JdbcProfile]
+  extends DefaultFilter[T, V, I, P] with IdQuery[T, V, I, P]{
+  protected val profile: SlickProfile
   import profile.api._ // scalastyle:ignore
 
   //Name of object, used for generic error messages like in update "id does not exist for $nameSingle"
@@ -34,9 +35,9 @@ trait DAOQuery[T <: DAOTable[V, I], V <: IdModel[I], I <: IDType]
     * @tparam C type of other idtype
     * @return query to do join
     */
-  def joinQuery[A <: DAOTable[B, C], B <: IdModel[C], C <: IDType]
+  def joinQuery[A <: DAOTable.Table[B, C, P], B <: DAOModel[C], C <: IdType]
   (
-    other: DAOQuery[A, B, C],
+    other: DAOQuery[A, B, C, P],
     on: (T, A) => Rep[Option[Boolean]],
     extraQueryOps: QueryJoin[A, B] => QueryJoin[A, B] = (query: QueryJoin[A, B]) => query
   ):
@@ -47,12 +48,12 @@ trait DAOQuery[T <: DAOTable[V, I], V <: IdModel[I], I <: IDType]
     )
   }
 
-  def joinQueryTwo[A <: DAOTable[B, C], B <: IdModel[C], C <: IDType,
-  AA <: DAOTable[BB, CC], BB <: IdModel[CC], CC <: IDType]
+  def joinQueryTwo[A <: DAOTable.Table[B, C, P], B <: DAOModel[C], C <: IdType,
+  AA <: DAOTable.Table[BB, CC, P], BB <: DAOModel[CC], CC <: IdType]
   (
-    otherFirst: DAOQuery[A, B, C],
+    otherFirst: DAOQuery[A, B, C, P],
     onFirst: (T, A) => Rep[Option[Boolean]],
-    otherSecond: DAOQuery[AA, BB, CC],
+    otherSecond: DAOQuery[AA, BB, CC, P],
     onSecond: (T, A, AA) => Rep[Option[Boolean]],
     extraQueryOps: QueryJoinTwo[A, B, AA, BB] => QueryJoinTwo[A, B, AA, BB]
       = (query: QueryJoinTwo[A, B, AA, BB]) => query
@@ -77,16 +78,16 @@ trait DAOQuery[T <: DAOTable[V, I], V <: IdModel[I], I <: IDType]
     * @tparam C type of other idtype
     * @return query to do left join, "other" piece is option to return
     */
-  def leftJoinQuery[A <: DAOTable[B, C], B <: IdModel[C], C <: IDType]
+  def leftJoinQuery[A <: DAOTable.Table[B, C, P], B <: DAOModel[C], C <: IdType]
   (
-    other: DAOQuery[A, B, C],
+    other: DAOQuery[A, B, C, P],
     on: (T, A) => Rep[Option[Boolean]],
     extraQueryOps: QueryLeftJoin[A, B] => QueryLeftJoin[A, B] = (query: QueryLeftJoin[A, B]) => query
   ):
   QueryLeftJoin[A, B] = {
     extraQueryOps(
-      slickQuery.joinLeft(other.getSlickQuery).on((mine, theirs) => on(mine, theirs) && other.getDefaultFilters(theirs))
-        .filter(f => getDefaultFilters(f._1))
+      slickQuery.joinLeft(other.getSlickQuery).on((mine, theirs) => on(mine, theirs))
+        .filter(f => getDefaultFilters(f._1) && f._2.flatMap(theirs => other.getDefaultFilters(theirs)))
     )
   }
 
@@ -149,9 +150,9 @@ trait DAOQuery[T <: DAOTable[V, I], V <: IdModel[I], I <: IDType]
   * @tparam V case class to store result set rows
   * @tparam I id type (option long and uuid)
   */
-trait IdQuery[T <: DAOTable[V, I], V <: IdModel[I], I <: IDType]
-  extends DefaultFilter[T, V, I] {
-  protected val profile: JdbcProfile
+trait IdQuery[T <: DAOTable.Table[V, I, P], V <: DAOModel[I], I <: IdType, P <: JdbcProfile]
+  extends DefaultFilter[T, V, I, P] {
+  protected val profile: SlickProfile
   import profile.api._ // scalastyle:ignore
 
   /**
@@ -199,9 +200,9 @@ trait IdQuery[T <: DAOTable[V, I], V <: IdModel[I], I <: IDType]
   * @tparam T slick table, extends aiqtable
   * @tparam V case class to store result set rows
   */
-trait DAOLongIdQuery[T <: DAOTable[V, DbLongOptID], V <: IdModel[DbLongOptID]]
-  extends IdQuery[T, V, DbLongOptID] with JdbcAiqTypes {
-  protected val profile: JdbcProfile
+trait DAOLongIdQuery[T <: DAOTable.Table[V, DbLongOptId, P], V <: DAOModel[DbLongOptId], P <: JdbcProfile]
+  extends IdQuery[T, V, DbLongOptId, P] with JdbcTypes {
+  protected val profile: SlickProfile
   import profile.api._ // scalastyle:ignore
 
   protected implicit val dbOptLongJdbcType = optLongJdbcType
@@ -212,7 +213,7 @@ trait DAOLongIdQuery[T <: DAOTable[V, DbLongOptID], V <: IdModel[DbLongOptID]]
     * @param id id to filter on
     * @return
     */
-  def idEquals(query: QueryWithFilter, id: DbLongOptID): QueryWithFilter = {
+  def idEquals(query: QueryWithFilter, id: DbLongOptId): QueryWithFilter = {
     query.filter(_.id === id)
   }
 
@@ -222,7 +223,7 @@ trait DAOLongIdQuery[T <: DAOTable[V, DbLongOptID], V <: IdModel[DbLongOptID]]
     * @param ids ids to filter on
     * @return
     */
-  def idInSet(query: QueryWithFilter, ids: Seq[DbLongOptID]): QueryWithFilter = {
+  def idInSet(query: QueryWithFilter, ids: Seq[DbLongOptId]): QueryWithFilter = {
     query.filter(_.id inSet(ids))
   }
 
@@ -230,14 +231,14 @@ trait DAOLongIdQuery[T <: DAOTable[V, DbLongOptID], V <: IdModel[DbLongOptID]]
     * Retrieve ID column from query
     * @return
     */
-  def idMap: Query[Rep[DbLongOptID], DbLongOptID, Seq] = slickQuery.map(_.id)
+  def idMap: Query[Rep[DbLongOptId], DbLongOptId, Seq] = slickQuery.map(_.id)
 
   /**
     * Retrieve seq of ids from resultset
     * @param input sequence of rows
     * @return
     */
-  def idsAsSeq(input: Seq[V]): Seq[DbLongOptID] = input.map(_.id)
+  def idsAsSeq(input: Seq[V]): Seq[DbLongOptId] = input.map(_.id)
 
   /**
     * Generate create query
@@ -246,7 +247,7 @@ trait DAOLongIdQuery[T <: DAOTable[V, DbLongOptID], V <: IdModel[DbLongOptID]]
     * @return autoinc id
     */
   def createQuery(input: V)(implicit ec: ExecutionContext):
-  DBIOAction[DbLongOptID, NoStream, Effect.Read with Effect.Write] = {
+  DBIOAction[DbLongOptId, NoStream, Effect.Read with Effect.Write] = {
     slickQuery returning slickQuery.map(_.id) += input
   }
 }
@@ -256,11 +257,12 @@ trait DAOLongIdQuery[T <: DAOTable[V, DbLongOptID], V <: IdModel[DbLongOptID]]
   * @tparam T slick table, extends aiqtable
   * @tparam V case class to store result set rows
   */
-trait DAOUUIDQuery[T <: DAOTable[V, DbUUID], V <: IdModel[DbUUID]]
-  extends IdQuery[T, V, DbUUID] with JdbcAiqTypes {
-  protected val profile: JdbcProfile
+trait DAOUUIDQuery[T <: DAOTable.Table[V, DbUUID, P], V <: DAOModel[DbUUID], P <: JdbcProfile]
+  extends IdQuery[T, V, DbUUID, P] with JdbcTypes {
+  protected val profile: SlickProfile
   import profile.api._ // scalastyle:ignore
 
+  import slick.driver.MySQLDriver.DriverJdbcType // scalastyle:ignore
   implicit val dbUuidJdbcType = uuidJdbcType
 
   /**

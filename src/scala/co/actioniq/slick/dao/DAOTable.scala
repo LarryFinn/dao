@@ -1,85 +1,51 @@
 package co.actioniq.slick.dao
 
-import slick.lifted.Tag
 import java.sql.{PreparedStatement, ResultSet}
 
-import slick.jdbc.{JdbcProfile, MySQLProfile}
-
-/**
-  * Basic table struction
-  * @tparam V model
-  * @tparam I IDType
-  */
-trait DAOTable[V <: IdModel[I], I <: IDType] extends IdTable[I]{
-  final type TableElementType = V
-}
+import slick.jdbc.{H2Profile, JdbcProfile, MySQLProfile, PostgresProfile}
+import slick.lifted.{AbstractTable, Tag}
 
 /**
   * A table that has an IDType for an ID
+ *
   * @tparam I IDType
   */
-trait IdTable[I <: IDType]{
+trait IdTable[I <: IdType]{
   def id: slick.lifted.Rep[I]
 }
 
-
-/**
-  * Lowest common denominator of tables, just has an ID.
-  * @param tag table tag
-  * @param tableName db table name
-  * @param schemaName optional schema name
-  * @tparam V type of case class to store records
-  * @tparam I IDType id type of table
-  */
-abstract class MySQLDAOTable[V <: IdModel[I], I <: IDType](tag: Tag, tableName: String, schemaName: Option[String] = None)
-  extends MySQLProfile.Table[V](tag, schemaName, tableName)
-    with DAOTable[V, I] with MySQLImplicits
-
-
-/**
-  * Table that has a Option[Long] id
-  * @param tag table tag
-  * @param tableName db table name
-  * @param schemaName optional schema name
-  * @tparam V type of case class to store records
-  */
-abstract class MySQLLongIdTable[V <: IdModel[DbLongOptID]](tag: Tag, tableName: String, schemaName: Option[String] = None)
-  extends MySQLDAOTable[V, DbLongOptID](tag, tableName, schemaName)
-    with MySQLImplicits {
-
-  def id: slick.lifted.Rep[DbLongOptID] = column[DbLongOptID] ("id", O.AutoInc)
+object DAOTable {
+  type Table[V <: DAOModel[I], I <: IdType, P <: JdbcProfile] = P#Table[V] with IdTable[I]
 }
 
-/**
-  * Table that has a UUID (stored as binary) id
-  * @param tag table tag
-  * @param tableName db table name
-  * @param schemaName optional schema name
-  * @tparam V type of case class to store records
-  */
-abstract class MySQLUUIDTable[V <: IdModel[DbUUID]](tag: Tag, tableName: String, schemaName: Option[String] = None)
-  extends MySQLDAOTable[V, DbUUID](tag, tableName, schemaName)
-    with MySQLImplicits {
-
-  def id: slick.lifted.Rep[DbUUID] = column[DbUUID] ("id")
+abstract class MySQLDAOTable[V <: DAOModel[I], I <: IdType](
+  tag: Tag,
+  tableName: String,
+  schemaName: Option[String] = None
+) extends MySQLProfile.Table[V](tag, schemaName, tableName)
+    with IdTable[I]{
+  self: DAOTable.Table[V, I, MySQLProfile] =>
 }
 
-trait MySQLImplicits extends JdbcAiqTypes {
-  override protected val profile = MySQLProfile
-
-  protected implicit val dbBinArrayJdbcType = (new profile.JdbcTypes).byteArrayJdbcType
-  protected implicit val dbUuidJdbcType = uuidJdbcType
-  protected implicit val dbUUIDColumnType = profile.api.MappedColumnType.base[DbUUID, Array[Byte]](
-    {uuid => uuid.binValue},
-    {bin => DbUUID(bin)}
-  )
-  protected implicit val dbOptLongJdbcType = optLongJdbcType
-
-  protected implicit val timestampCol = {
-    (new profile.JdbcTypes).timestampJdbcType
-  }
+abstract class PostgresDAOTable[V <: DAOModel[I], I <: IdType](
+  tag: Tag,
+  tableName: String,
+  schemaName: Option[String] = None
+) extends PostgresProfile.Table[V](tag, schemaName, tableName)
+    with IdTable[I]{
+  self: DAOTable.Table[V, I, PostgresProfile] =>
 }
-trait JdbcAiqTypes{
+
+abstract class H2DAOTable[V <: DAOModel[I], I <: IdType](
+  tag: Tag,
+  tableName: String,
+  schemaName: Option[String] = None
+) extends H2Profile.Table[V](tag, schemaName, tableName)
+  with IdTable[I]{
+  self: DAOTable.Table[V, I, H2Profile] =>
+}
+
+trait JdbcTypes{
   protected val profile: JdbcProfile
   def uuidJdbcType(): profile.DriverJdbcType[DbUUID] = {
     new profile.DriverJdbcType[DbUUID]() {
@@ -91,36 +57,21 @@ trait JdbcAiqTypes{
     }
   }
 
-  def optLongJdbcType(): profile.DriverJdbcType[DbLongOptID] = {
-    new profile.DriverJdbcType[DbLongOptID]() {
+  def optLongJdbcType(): profile.DriverJdbcType[DbLongOptId] = {
+    new profile.DriverJdbcType[DbLongOptId]() {
       def sqlType: Int = java.sql.Types.BIGINT
-      def setValue(v: DbLongOptID, p: PreparedStatement, idx: Int): Unit = v.value match {
+      def setValue(v: DbLongOptId, p: PreparedStatement, idx: Int): Unit = v.value match {
         case None => p.setNull(idx, sqlType)
         case Some(s) => p.setLong(idx, s)
       }
-      def getValue(r: ResultSet, idx: Int): DbLongOptID = DbLongOptID(r.getLong(idx))
-      def updateValue(v: DbLongOptID, r: ResultSet, idx: Int): Unit = v.value match {
+      def getValue(r: ResultSet, idx: Int): DbLongOptId = DbLongOptId(r.getLong(idx))
+      def updateValue(v: DbLongOptId, r: ResultSet, idx: Int): Unit = v.value match {
         case None => r.updateNull(idx)
         case Some(s) => r.updateLong(idx, s)
       }
       override def hasLiteralForm: Boolean = false
     }
   }
-}
-
-trait AiqDelete extends JdbcProfile { driver: JdbcProfile =>
-  import scala.language.higherKinds // scalastyle:ignore
-  trait API extends super.API {
-    implicit def queryDeleteActionExtensionMethodsToo[C[_]](q: Query[_ <: DAOTable[_, _], _, C]):
-    DeleteActionExtensionMethods =
-      createDeleteActionExtensionMethods(deleteCompiler.run(q.toNode).tree, ())
-  }
-
-  override val api: API = new API {}
-}
-
-trait AiqProfile extends JdbcProfile with AiqDelete{ driver =>
-  override val profile: AiqDelete = this.asInstanceOf[AiqDelete]
 }
 
 

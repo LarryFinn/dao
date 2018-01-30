@@ -1,5 +1,6 @@
 package co.actioniq.slick.dao
 
+import co.actioniq.slick.SlickProfile
 import slick.jdbc.JdbcProfile
 
 /**
@@ -9,9 +10,9 @@ import slick.jdbc.JdbcProfile
   * @tparam V case class to store result set rows
   * @tparam I id type (option long and uuid)
   */
-trait DefaultFilter[T <: DAOTable[V, I], V, I <: IDType] {
-  protected val driver: JdbcProfile
-  import driver.api._ // scalastyle:ignore
+trait DefaultFilter[T <: DAOTable.Table[V, I, P], V <: DAOModel[I], I <: IdType, P <: JdbcProfile] {
+  protected val profile: SlickProfile
+  import profile.api._ // scalastyle:ignore
 
   protected type QueryWithFilter =
     Query[T, T#TableElementType, Seq]
@@ -43,4 +44,9 @@ trait DefaultFilter[T <: DAOTable[V, I], V, I <: IDType] {
     }
   }
 }
+
+
+
+
+
 

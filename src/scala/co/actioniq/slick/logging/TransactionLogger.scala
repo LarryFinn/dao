@@ -1,18 +1,16 @@
 package co.actioniq.slick.logging
 
-trait TransactionLogger extends Backend
 
-object TransactionLogger {
-  trait Provider {
-    protected def getTransactionLogger: TransactionLogger
-    lazy implicit val implicitLogger = getTransactionLogger
-  }
+trait TransactionLogger {
+  def write[T <: LogEntry](data: T): Unit
+  def flush(): Unit
+  def clear(): Unit
+}
 
-  trait ProviderProd extends Provider {
-    override def getTransactionLogger: TransactionLogger = new TransactionLogger with LoggerFileBackend
-  }
+trait NoopBackend extends TransactionLogger {
+  override def write[T <: LogEntry](data: T): Unit = Unit
 
-  trait ProviderNoop extends Provider {
-    override def getTransactionLogger: TransactionLogger = new TransactionLogger with NoopBackend
-  }
+  override def flush(): Unit = Unit
+
+  override def clear(): Unit = Unit
 }
