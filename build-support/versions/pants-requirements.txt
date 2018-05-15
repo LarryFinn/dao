@@ -1,2 +1,0 @@
-pantsbuild.pants==1.3.0
-pyjavaproperties==0.6

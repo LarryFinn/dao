@@ -1,5 +1,3 @@
-import Versions
-
 # These dependencies will be pinned to a version
 managed_jar_dependencies(
   name='management',

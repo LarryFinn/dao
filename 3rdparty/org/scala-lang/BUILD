@@ -1,9 +1,7 @@
-import Versions
-
 def make_lib(name):
   jar_library(name=name,
     jars=[
-      jar(org='org.scala-lang', name=name, rev=Versions.get('scala'))
+      jar(org='org.scala-lang', name=name, rev='2.11.8')
     ]
   )
 

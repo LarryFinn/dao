@@ -1,7 +1,5 @@
-import Versions
-
 ORG = 'com.typesafe.play'
-REV = Versions.get('play')
+REV = '2.4.11'
 EXCLUDES = [
   exclude(org='com.fasterxml.jackson.core'),
   exclude(org='com.fasterxml.jackson.module')

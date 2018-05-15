@@ -1,5 +1,3 @@
-import Versions
-
 ORG='com.twitter'
 
 def make_lib(name, rev, excludes=[]):
@@ -10,11 +8,11 @@ def make_lib(name, rev, excludes=[]):
     scope="forced",
   )
 
-make_lib('bijection-util', Versions.get('Twitter.bijection'))
+make_lib('bijection-util', '0.9.2')
 
 EXCLUDE_GUAVA = exclude(org='com.google.guava', name='guava')
 
-UTIL_REV = Versions.get('Twitter.util')
+UTIL_REV = '6.35.0'
 UTIL_EXCLUDES = [
   EXCLUDE_GUAVA,
   exclude(org='junit', name='junit'),
