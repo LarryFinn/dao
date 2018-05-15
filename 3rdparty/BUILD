@@ -7,3 +7,10 @@ managed_jar_dependencies(
     '3rdparty/org/scala-lang:scala-library',
   ],
 )
+REV_MYSQL = '5.1.41'
+jar_library(name='mysql',
+  jars=[
+    jar('mysql', 'mysql-connector-java', REV_MYSQL)
+  ],
+  scope='runtime',
+)
