@@ -6,6 +6,4 @@ class DAOException(
   val code: Option[String] = None,
   val file: Option[String] = None,
   val line: Option[Int] = None
-) extends Exception(message) {
-
-}
+) extends Exception(message)

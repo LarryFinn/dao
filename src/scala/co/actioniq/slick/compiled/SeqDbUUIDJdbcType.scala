@@ -8,7 +8,7 @@ import slick.jdbc.JdbcProfile
 import scala.reflect.ClassTag
 
 class SeqDbUUIDJdbcType(val profile: JdbcProfile) {
-  abstract class SeqDbUUIDJdbc[T <: BoundedSeq[DbUUID] : ClassTag] extends profile.DriverJdbcType[T] {
+  abstract class SeqDbUUIDJdbc[T <: BoundedSeq[DbUUID]: ClassTag] extends profile.DriverJdbcType[T] {
     override def hasLiteralForm: Boolean = false
 
     def sqlType: Int = java.sql.Types.BLOB

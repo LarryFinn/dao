@@ -8,6 +8,7 @@ import slick.lifted.{AppliedCompiledFunction, CompiledFunction}
 
 import scala.concurrent.ExecutionContext
 
+// scalastyle:off parameter.number
 /**
   * Generates the base queries that most DAO classes will need
   * @tparam T slick table, extends aiqtable
@@ -234,7 +235,7 @@ trait IdQuery[T <: DAOTable.Table[V, I, P], V <: IdModel[I], I <: IdType, P <: J
     ids: Seq[I],
     field1: (T, Rep[A]) => Rep[Boolean],
     field1Value: A
-  )(implicit aTpe : P#DriverJdbcType[A]): AppliedCompiledFunction[_, _, Seq[V]]
+  )(implicit aTpe: P#DriverJdbcType[A]): AppliedCompiledFunction[_, _, Seq[V]]
 
   /**
     * Get compiled query with input applied.  Adds TWO extra field for filtering
@@ -264,7 +265,7 @@ trait IdQuery[T <: DAOTable.Table[V, I, P], V <: IdModel[I], I <: IdType, P <: J
     field2: (T, Rep[B]) => Rep[Boolean],
     field2Value: B
   )(
-    implicit aTpe : P#DriverJdbcType[A],
+    implicit aTpe: P#DriverJdbcType[A],
     bTpe: P#DriverJdbcType[B]
   ): AppliedCompiledFunction[_, _, Seq[V]]
 }
@@ -385,7 +386,7 @@ trait DAOLongIdQuery[T <: DAOTable.Table[V, DbLongOptId, P], V <: IdModel[DbLong
     ids: Seq[DbLongOptId],
     field1: (T, Rep[A]) => Rep[Boolean],
     field1Value: A
-  )(implicit aTpe : P#DriverJdbcType[A]): AppliedCompiledFunction[_, _, Seq[V]] = {
+  )(implicit aTpe: P#DriverJdbcType[A]): AppliedCompiledFunction[_, _, Seq[V]] = {
     if (ids.length <= 100) {
       val toCall = storage.getOrInitCompiledQuery(s"${keyPrefix}_100"){
         def funct(
@@ -450,7 +451,7 @@ trait DAOLongIdQuery[T <: DAOTable.Table[V, DbLongOptId, P], V <: IdModel[DbLong
     field2: (T, Rep[B]) => Rep[Boolean],
     field2Value: B
   )(
-    implicit aTpe : P#DriverJdbcType[A],
+    implicit aTpe: P#DriverJdbcType[A],
     bTpe: P#DriverJdbcType[B]
   ): AppliedCompiledFunction[_, _, Seq[V]] = {
     if (ids.length <= 100) {
@@ -661,7 +662,7 @@ trait DAOUUIDQuery[T <: DAOTable.Table[V, DbUUID, P], V <: IdModel[DbUUID], P <:
     ids: Seq[DbUUID],
     field1: (T, Rep[A]) => Rep[Boolean],
     field1Value: A
-  )(implicit aTpe : P#DriverJdbcType[A]): AppliedCompiledFunction[_, _, Seq[V]] = {
+  )(implicit aTpe: P#DriverJdbcType[A]): AppliedCompiledFunction[_, _, Seq[V]] = {
     if (ids.length <= 100) {
       val toCall = storage.getOrInitCompiledQuery(s"${keyPrefix}_100"){
         def funct(
@@ -726,7 +727,7 @@ trait DAOUUIDQuery[T <: DAOTable.Table[V, DbUUID, P], V <: IdModel[DbUUID], P <:
     field2: (T, Rep[B]) => Rep[Boolean],
     field2Value: B
   )(
-    implicit aTpe : P#DriverJdbcType[A],
+    implicit aTpe: P#DriverJdbcType[A],
     bTpe: P#DriverJdbcType[B]
   ): AppliedCompiledFunction[_, _, Seq[V]] = {
     if (ids.length <= 100) {
@@ -791,3 +792,4 @@ trait DAOUUIDQuery[T <: DAOTable.Table[V, DbUUID, P], V <: IdModel[DbUUID], P <:
     }
   }
 }
+// scalastyle:on parameter.number

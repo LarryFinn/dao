@@ -20,7 +20,7 @@ class SlickManagedArrayBlockingQueue[E >: Null <: PriorityRunnableProxy](
   private[this] val notEmpty = lock.newCondition
   private[this] val notFull = lock.newCondition
 
-  private[this] def checkNotNull(v: AnyRef): Unit = if (v == null) throw new NullPointerException
+  private[this] def checkNotNull(v: AnyRef): Unit = if (v == null) throw new NullPointerException // scalastyle:ignore
   private[this] def checkNotInUse(e: E) = require(!e.inUseCounterSet, "in use count is already set")
 
   private[this] val itemQueue = new InternalArrayQueue[E](2*capacity)
@@ -135,7 +135,7 @@ class SlickManagedArrayBlockingQueue[E >: Null <: PriorityRunnableProxy](
       null //scalastyle:ignore
     } else {
       val e = highPrioItemQueue.peek
-      if (e != null) e else itemQueue.peek
+      if (e != null) e else itemQueue.peek // scalastyle:ignore
     }
   }
 
