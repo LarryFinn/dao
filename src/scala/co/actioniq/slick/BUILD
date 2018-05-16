@@ -13,9 +13,10 @@ scala_library(name='slick',
   sources=rglobs('*.scala'),
   scope='default',
   strict_deps=True,
+  provides = artifact(
+    org='co.actioniq',
+    name='slick',
+    repo=local,
+  )
 )
 
-target(name='slick-runtime',
-  dependencies=[':slick'],
-  scope='runtime',
-)
