@@ -1,7 +1,7 @@
 def make_lib(name):
   jar_library(name=name,
     jars=[
-      jar(org='org.scala-lang', name=name, rev='2.11.8')
+      jar(org='org.scala-lang', name=name, rev='2.11.11')
     ]
   )
 

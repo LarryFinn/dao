@@ -16,18 +16,22 @@ trait InSeqDbUUIDImplicits {
   protected val profile: SlickProfile // scalastyle:ignore
   import profile.api._ //scalastyle:ignore
 
-  protected implicit def seqLongOptImplicit = new SeqLongOptJdbcTypeBase
-  protected implicit def seqLongOpt100Implicit = new SeqLongOptJdbcType100
-  protected implicit def seqLongOpt200Implicit = new SeqLongOptJdbcType200
-  protected implicit def seqLongOpt500Implicit = new SeqLongOptJdbcType500
-  protected implicit def seqLongOpt1000Implicit = new SeqLongOptJdbcType1000
+  val optWrapper = new SeqLongOptJdbcType(profile)
+  val uuidWrapper = new SeqDbUUIDJdbcType(profile)
+  val placeholderWrapper = new PlaceholderJdbcType(profile)
+
+  protected implicit def seqLongOptImplicit = new optWrapper.SeqLongOptJdbcTypeBase
+  protected implicit def seqLongOpt100Implicit = new optWrapper.SeqLongOptJdbcType100
+  protected implicit def seqLongOpt200Implicit = new optWrapper.SeqLongOptJdbcType200
+  protected implicit def seqLongOpt500Implicit = new optWrapper.SeqLongOptJdbcType500
+  protected implicit def seqLongOpt1000Implicit = new optWrapper.SeqLongOptJdbcType1000
 
 
-  protected implicit def seqDbUUIDImplicit = new SeqDbUUIDJdbcTypeBase
-  protected implicit def seqDbUUID100Implicit = new SeqDbUUIDJdbcType100
-  protected implicit def seqDbUUID200Implicit = new SeqDbUUIDJdbcType200
-  protected implicit def seqDbUUID500Implicit = new SeqDbUUIDJdbcType500
-  protected implicit def seqDbUUID1000Implicit = new SeqDbUUIDJdbcType1000
+  protected implicit def seqDbUUIDImplicit = new uuidWrapper.SeqDbUUIDJdbcTypeBase
+  protected implicit def seqDbUUID100Implicit = new uuidWrapper.SeqDbUUIDJdbcType100
+  protected implicit def seqDbUUID200Implicit = new uuidWrapper.SeqDbUUIDJdbcType200
+  protected implicit def seqDbUUID500Implicit = new uuidWrapper.SeqDbUUIDJdbcType500
+  protected implicit def seqDbUUID1000Implicit = new uuidWrapper.SeqDbUUIDJdbcType1000
 
 
   /**
@@ -35,7 +39,7 @@ trait InSeqDbUUIDImplicits {
     *
     * @return
     */
-  protected implicit def nonersJdbcType = new PlaceholderJdbcType
+  protected implicit def nonersJdbcType = new placeholderWrapper.PlaceholderJdbc
 
 
   /**
@@ -101,7 +105,7 @@ trait InSeqDbUUIDImplicits {
             _ =>
               val placeKeeper = const.toNode.asInstanceOf[QueryParameter].copy(
                 extractor = _ => new Placeholder(),
-                buildType = new PlaceholderJdbcType
+                buildType = nonersJdbcType
               )
               new ConstColumn[Placeholder](placeKeeper)
           }
@@ -156,7 +160,7 @@ trait InSeqDbUUIDImplicits {
             _ =>
               val placeKeeper = const.toNode.asInstanceOf[QueryParameter].copy(
                 extractor = _ => new Placeholder(),
-                buildType = new PlaceholderJdbcType
+                buildType = nonersJdbcType
               )
               new ConstColumn[Placeholder](placeKeeper)
           }

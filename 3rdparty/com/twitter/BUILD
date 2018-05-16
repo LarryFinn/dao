@@ -21,3 +21,13 @@ UTIL_EXCLUDES = [
 ]
 make_lib('util-app', UTIL_REV, excludes=UTIL_EXCLUDES)
 make_lib('util-core', UTIL_REV, excludes=UTIL_EXCLUDES)
+
+FINAGLE_EXCLUDES = [
+  exclude(org='org.jboss.netty', name='netty'),
+  exclude(org='io.netty'),
+  exclude(org='org.apache.thrift', name='libthrift'),
+  exclude(org='com.fasterxml.jackson.core'),
+  exclude(org='com.fasterxml.jackson.module')
+]
+FINAGLE_REV = '6.39.0'
+make_lib('finagle-core', FINAGLE_REV, excludes=FINAGLE_EXCLUDES)

@@ -26,7 +26,7 @@ class OptionCompareOption[B1](val c: Rep[Option[B1]]) extends AnyVal with Column
     * compilation. */
   def get: Rep[B1] =
     Rep.forNode[B1](GetOrElse(c.toNode, () =>
-      throw new SlickException("Read NULL value for column " + this)))(c
+      throw new dao.DAOException("Read NULL value for column " + this)))(c
       .asInstanceOf[Rep.TypedRep[_]].tpe.asInstanceOf[OptionType].elementType.asInstanceOf[TypedType[B1]])
 
   /**

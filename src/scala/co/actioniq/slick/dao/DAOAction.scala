@@ -1,7 +1,6 @@
 package co.actioniq.slick.dao
 
 import co.actioniq.slick.SlickProfile
-import co.actioniq.thrift.ServiceException
 import slick.jdbc.JdbcProfile
 
 import scala.concurrent.ExecutionContext
@@ -112,20 +111,21 @@ trait DAOAction[T <: DAOTable.Table[V, I, P], V <: IdModel[I], I <: IdType, P <:
     * Perform action to read object by id, throw exception if not found
     * @param id id of object
     * @param ec
-    * @return dbioaction of model or failure with ServiceException
+    * @return dbioaction of model or failure with SlickException
     */
   protected def readByIdRequiredAction(id: I)(implicit ec: ExecutionContext):
   DBIOAction[T#TableElementType, NoStream, Effect.Read]= {
     readByIdQuery(id).result
-      .map(_.headOption.getOrElse(throw new ServiceException(s"Unknown $nameSingle id: id")))
+      .map(_.headOption.getOrElse(throw new SlickException(s"Unknown $nameSingle id: id")))
   }
 
   /**
     * Perform action to read object by set of ids, throw exception if any not found
+ *
     * @param id set of ids
     * @param ec
-    * @throws ServiceException if any id is invalid
-    * @return dbioaction of sequence of model or failure with ServiceException
+    * @throws DAOException if any id is invalid
+    * @return dbioaction of sequence of model or failure with SlickException
     */
   protected def readByIdRequiredAction(id: Set[I])(implicit ec: ExecutionContext):
   DBIOAction[Seq[T#TableElementType], NoStream, Effect.Read]= {
@@ -136,7 +136,7 @@ trait DAOAction[T <: DAOTable.Table[V, I, P], V <: IdModel[I], I <: IdType, P <:
         true
       } else {
           val outputIds = objects.map(_.id).toSet
-          throw new ServiceException(s"Unkonwn $nameSingle id: ${id.diff(outputIds)}")
+          throw new SlickException(s"Unkonwn $nameSingle id: ${id.diff(outputIds)}")
       }
     } yield objects
   }
@@ -249,7 +249,7 @@ trait DAOAction[T <: DAOTable.Table[V, I, P], V <: IdModel[I], I <: IdType, P <:
       }
       case Failure(th) => th match {
         case ex: FormValidatorExceptions =>
-          throw new ServiceException(message = ex.errors.head.message, code = ex.errors.head.code,
+          throw new DAOException(message = ex.errors.head.message, code = ex.errors.head.code,
             klass = Some(classOf[FormValidatorExceptions].getName))
         case ex: Throwable => throw ex
       }
@@ -293,7 +293,7 @@ trait DAOAction[T <: DAOTable.Table[V, I, P], V <: IdModel[I], I <: IdType, P <:
       }
       case Failure(th) => th match {
         case ex: FormValidatorExceptions =>
-          throw new ServiceException(message = ex.errors.head.message, code = ex.errors.head.code,
+          throw new DAOException(message = ex.errors.head.message, code = ex.errors.head.code,
             klass = Some(classOf[FormValidatorExceptions].getName))
         case ex: Throwable => throw ex
       }

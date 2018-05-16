@@ -7,7 +7,6 @@ import brave.sampler.Sampler
 import brave.{Span, Tracer, Tracing}
 import ch.qos.logback.classic.spi.ILoggingEvent
 import ch.qos.logback.core.AppenderBase
-import co.actioniq.functional.AiqLogger
 import com.google.common.cache.CacheBuilder
 import slick.jdbc.JdbcBackend
 import zipkin.Endpoint
@@ -23,7 +22,19 @@ import scala.concurrent.duration._
   * the start time of the original log time + duration as in the message reported by the zipkin logger.  We use a
   * cache map here in case we never get a duration message for some reason, this will not cause memory to blow up.
   */
-class ZipkinLogbackAppender extends AppenderBase[ILoggingEvent] {
+class ZipkinLogbackAppender extends ZipkinLogbackAppenderTrait {
+  override def traceIdKey: String = "X-Trace-Id"
+
+  override def spanIdKey: String = "X-Span-Id"
+
+  override def shouldTraceKey: String = "X-Should-Trace"
+}
+
+trait ZipkinLogbackAppenderTrait extends AppenderBase[ILoggingEvent] {
+  def traceIdKey: String
+  def spanIdKey: String
+  def shouldTraceKey: String
+
   private var serviceName = "unknown"
   private var sampleRate = 1.0f
   private var url = ""
@@ -43,9 +54,9 @@ class ZipkinLogbackAppender extends AppenderBase[ILoggingEvent] {
   override def append(e: ILoggingEvent): Unit = {
     if (isStarted && Option(e).isDefined) {
       val time = e.getTimeStamp * 1000
-      val traceIdOpt = Option(e.getMDCPropertyMap.get(AiqLogger.TraceIdKey))
-      val spanIdOpt = Option(e.getMDCPropertyMap.get("X-Span-Id"))
-      val shouldTrace = Option(e.getMDCPropertyMap.get("X-Should-Trace")).getOrElse("false") == "true"
+      val traceIdOpt = Option(e.getMDCPropertyMap.get(traceIdKey))
+      val spanIdOpt = Option(e.getMDCPropertyMap.get(spanIdKey))
+      val shouldTrace = Option(e.getMDCPropertyMap.get(shouldTraceKey)).getOrElse("false") == "true"
       (shouldTrace, traceIdOpt, spanIdOpt) match {
         case (true, Some(traceId), Some(spanId)) =>
           val cacheKey = s"$spanId-${e.getThreadName}"

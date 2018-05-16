@@ -1,7 +1,7 @@
 package slick.util
 
 
-import co.actioniq.functional.ContextCopier
+import co.actioniq.slick.context.ContextCopier
 import com.twitter.finagle.tracing.Trace
 import org.slf4j.MDC
 import slick.util.AsyncExecutor.{PrioritizedRunnable, Priority, WithConnection}
