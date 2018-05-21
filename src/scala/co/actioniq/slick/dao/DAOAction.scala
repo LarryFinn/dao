@@ -1,6 +1,5 @@
 package co.actioniq.slick.dao
 
-import co.actioniq.slick.SlickProfile
 import slick.jdbc.JdbcProfile
 
 import scala.concurrent.ExecutionContext
@@ -14,7 +13,7 @@ import scala.util.{Failure, Success}
   */
 trait DAOAction[T <: DAOTable.Table[V, I, P], V <: IdModel[I], I <: IdType, P <: JdbcProfile]
   extends DAOQuery[T, V, I, P] with DAOHook[V] with DAOActionValidate[V] {
-  protected val profile: SlickProfile // scalastyle:ignore
+  protected val profile: JdbcProfile // scalastyle:ignore
   import profile.api._ // scalastyle:ignore
 
   /**
@@ -526,7 +525,7 @@ trait DAOAction[T <: DAOTable.Table[V, I, P], V <: IdModel[I], I <: IdType, P <:
   * @tparam V model / slick case class
   */
 trait DAOActionValidate[V] {
-  protected val profile: SlickProfile
+  protected val profile: JdbcProfile
   import profile.api._ // scalastyle:ignore
   /**
     * Validate create

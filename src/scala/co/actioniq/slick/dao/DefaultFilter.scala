@@ -1,6 +1,5 @@
 package co.actioniq.slick.dao
 
-import co.actioniq.slick.SlickProfile
 import slick.jdbc.JdbcProfile
 
 /**
@@ -11,7 +10,7 @@ import slick.jdbc.JdbcProfile
   * @tparam I id type (option long and uuid)
   */
 trait DefaultFilter[T <: DAOTable.Table[V, I, P], V <: IdModel[I], I <: IdType, P <: JdbcProfile] {
-  protected val profile: SlickProfile
+  protected val profile: JdbcProfile
   import profile.api._ // scalastyle:ignore
 
   protected type QueryWithFilter =

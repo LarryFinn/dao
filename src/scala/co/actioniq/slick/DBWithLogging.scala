@@ -5,7 +5,7 @@ import slick.jdbc.JdbcBackend.Database
 
 import scala.concurrent.ExecutionContext
 
-class SlickDatabase(val self: Database, val transactionLogger: TransactionLogger)
+class DBWithLogging(val self: Database, val transactionLogger: TransactionLogger)
   extends Proxy {
   def run[R](a: slick.dbio.DBIOAction[R, slick.dbio.NoStream, scala.Nothing])(implicit ec: ExecutionContext):
   scala.concurrent.Future[R] = {
@@ -19,12 +19,12 @@ class SlickDatabase(val self: Database, val transactionLogger: TransactionLogger
   }
 }
 
-object SlickDatabase {
+object DBWithLogging {
   def apply(
     db: Database,
     transactionLogger: TransactionLogger
-  ): SlickDatabase = new SlickDatabase(db, transactionLogger)
-  implicit def database2SlickDatabase(db: Database)(implicit transactionLogger: TransactionLogger): SlickDatabase =
-    SlickDatabase(db, transactionLogger)
-  implicit def slickDatabase2Database(slickDb: SlickDatabase): Database = slickDb.self
+  ): DBWithLogging = new DBWithLogging(db, transactionLogger)
+  implicit def database2DbWithLogging(db: Database)(implicit transactionLogger: TransactionLogger): DBWithLogging =
+    DBWithLogging(db, transactionLogger)
+  implicit def dBWithLogging2Database(slickDb: DBWithLogging): Database = slickDb.self
 }

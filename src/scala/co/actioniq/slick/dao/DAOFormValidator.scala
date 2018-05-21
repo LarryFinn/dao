@@ -1,8 +1,8 @@
 package co.actioniq.slick.dao
 
-import co.actioniq.slick.SlickProfile
 import slick.dbio.{DBIOAction, Effect, NoStream}
 import slick.jdbc.JdbcBackend.Database
+import slick.jdbc.JdbcProfile
 
 import scala.concurrent.ExecutionContext
 
@@ -12,7 +12,7 @@ import scala.concurrent.ExecutionContext
   * @tparam V case class recordset
   */
 trait DAOFormValidator[V] {
-  protected val profile: SlickProfile
+  protected val profile: JdbcProfile
   protected val db: Database
 
   /**

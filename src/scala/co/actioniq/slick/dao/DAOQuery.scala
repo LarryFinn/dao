@@ -1,7 +1,6 @@
 package co.actioniq.slick.dao
 
 
-import co.actioniq.slick.SlickProfile
 import co.actioniq.slick.compiled.{BoundedSeq100, BoundedSeq1000, BoundedSeq200, BoundedSeq500, InSeqDbUUIDImplicits, SlickCompiledFunctionSingleton}
 import slick.jdbc.JdbcProfile
 import slick.lifted.{AppliedCompiledFunction, CompiledFunction}
@@ -17,7 +16,7 @@ import scala.concurrent.ExecutionContext
   */
 trait DAOQuery[T <: DAOTable.Table[V, I, P], V <: IdModel[I], I <: IdType, P <: JdbcProfile]
   extends DefaultFilter[T, V, I, P] with IdQuery[T, V, I, P]{
-  protected val profile: SlickProfile
+  protected val profile: JdbcProfile
   import profile.api._ // scalastyle:ignore
 
   // Name of object, used for generic error messages like in update "id does not exist for $nameSingle"
@@ -155,7 +154,7 @@ trait DAOQuery[T <: DAOTable.Table[V, I, P], V <: IdModel[I], I <: IdType, P <: 
   */
 trait IdQuery[T <: DAOTable.Table[V, I, P], V <: IdModel[I], I <: IdType, P <: JdbcProfile]
   extends DefaultFilter[T, V, I, P] {
-  protected val profile: SlickProfile
+  protected val profile: JdbcProfile
   import profile.api._ // scalastyle:ignore
 
   /**
@@ -277,7 +276,7 @@ trait IdQuery[T <: DAOTable.Table[V, I, P], V <: IdModel[I], I <: IdType, P <: J
   */
 trait DAOLongIdQuery[T <: DAOTable.Table[V, DbLongOptId, P], V <: IdModel[DbLongOptId], P <: JdbcProfile]
   extends IdQuery[T, V, DbLongOptId, P] with JdbcTypes with InSeqDbUUIDImplicits {
-  protected val profile: SlickProfile
+  protected val profile: JdbcProfile
   import profile.api._ // scalastyle:ignore
 
   protected implicit val dbOptLongJdbcType = optLongJdbcType
@@ -525,7 +524,7 @@ trait DAOLongIdQuery[T <: DAOTable.Table[V, DbLongOptId, P], V <: IdModel[DbLong
   */
 trait DAOUUIDQuery[T <: DAOTable.Table[V, DbUUID, P], V <: IdModel[DbUUID], P <: JdbcProfile]
   extends IdQuery[T, V, DbUUID, P] with JdbcTypes with InSeqDbUUIDImplicits {
-  protected val profile: SlickProfile
+  protected val profile: JdbcProfile
   import profile.api._ // scalastyle:ignore
 
   import slick.driver.MySQLDriver.DriverJdbcType // scalastyle:ignore

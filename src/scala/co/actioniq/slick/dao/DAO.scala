@@ -1,7 +1,7 @@
 package co.actioniq.slick.dao
 
 
-import co.actioniq.slick.{SlickDatabase, OptLongCompare, OptionCompareOption, UUIDCompare}
+import co.actioniq.slick.{DBWithLogging, OptLongCompare, OptionCompareOption, UUIDCompare}
 import co.actioniq.slick.dao.Implicit.scalaToTwitterConverter
 import com.twitter.util.Future
 import slick.jdbc.{H2Profile, JdbcProfile, MySQLProfile, PostgresProfile}
@@ -17,7 +17,7 @@ import scala.concurrent.ExecutionContext
 trait DAO[T <: DAOTable.Table[V, I, P], V <: IdModel[I], I <: IdType, P <: JdbcProfile]
   extends DAOAction[T, V, I, P] {
 
-  protected val db: SlickDatabase
+  protected val db: DBWithLogging
   protected implicit val ec: ExecutionContext
 
   import profile.api._ // scalastyle:ignore

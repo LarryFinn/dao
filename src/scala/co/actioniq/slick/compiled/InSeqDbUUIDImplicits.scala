@@ -1,8 +1,8 @@
 package co.actioniq.slick.compiled
 
-import co.actioniq.slick.SlickProfile
 import co.actioniq.slick.dao.{DbLongOptId, DbUUID}
 import slick.ast.{Library, QueryParameter, TypedType}
+import slick.jdbc.JdbcProfile
 import slick.lifted.OptionMapperDSL
 
 
@@ -13,7 +13,7 @@ import slick.lifted.OptionMapperDSL
   * not affect the resultset.
   */
 trait InSeqDbUUIDImplicits {
-  protected val profile: SlickProfile // scalastyle:ignore
+  protected val profile: JdbcProfile // scalastyle:ignore
   import profile.api._ //scalastyle:ignore
 
   val optWrapper = new SeqLongOptJdbcType(profile)
