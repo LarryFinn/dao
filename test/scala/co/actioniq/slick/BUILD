@@ -1,0 +1,11 @@
+junit_tests(name='aiqslick',
+  dependencies=[
+    'src/scala/co/actioniq/slick',
+    '3rdparty/org/specs2',
+    '3rdparty/com/h2database:h2',
+    '3rdparty/com/typesafe:slick',
+    '3rdparty/com/twitter:bijection-util',
+  ],
+  sources=globs('*.scala'),
+  strict_deps=True,
+)

@@ -275,11 +275,9 @@ trait IdQuery[T <: DAOTable.Table[V, I, P], V <: IdModel[I], I <: IdType, P <: J
   * @tparam V case class to store result set rows
   */
 trait DAOLongIdQuery[T <: DAOTable.Table[V, DbLongOptId, P], V <: IdModel[DbLongOptId], P <: JdbcProfile]
-  extends IdQuery[T, V, DbLongOptId, P] with JdbcTypes with InSeqDbUUIDImplicits {
+  extends IdQuery[T, V, DbLongOptId, P] with JdbcTypes[P] with InSeqDbUUIDImplicits {
   protected val profile: JdbcProfile
   import profile.api._ // scalastyle:ignore
-
-  protected implicit val dbOptLongJdbcType = optLongJdbcType
 
   /**
     * Filter id equals DbLongOptID
@@ -523,12 +521,11 @@ trait DAOLongIdQuery[T <: DAOTable.Table[V, DbLongOptId, P], V <: IdModel[DbLong
   * @tparam V case class to store result set rows
   */
 trait DAOUUIDQuery[T <: DAOTable.Table[V, DbUUID, P], V <: IdModel[DbUUID], P <: JdbcProfile]
-  extends IdQuery[T, V, DbUUID, P] with JdbcTypes with InSeqDbUUIDImplicits {
+  extends IdQuery[T, V, DbUUID, P] with JdbcTypes[P] with InSeqDbUUIDImplicits {
   protected val profile: JdbcProfile
   import profile.api._ // scalastyle:ignore
 
   import slick.driver.MySQLDriver.DriverJdbcType // scalastyle:ignore
-  implicit val dbUuidJdbcType = uuidJdbcType
 
   /**
     * Filter id equals UUID
