@@ -1,14 +1,16 @@
 package co.actioniq.slick
 
+import java.util.UUID
 import java.util.concurrent.TimeUnit
 
 import co.actioniq.slick.dao.{DAOLongIdQuery, DAOUUIDQuery, DbLongOptId, DbUUID, FormValidatorMessageSeq, H2DAO, H2DAOTable, IdModel, JdbcTypeImplicits}
 import co.actioniq.slick.logging.NoopBackend
+import co.actioniq.slick.OptionCompareOption._
 import org.junit.runner.RunWith
 import org.specs2.mock.Mockito
 import org.specs2.mutable.Specification
 import org.specs2.runner.JUnitRunner
-import slick.jdbc.{H2Profile, PositionedParameters, SetParameter}
+import slick.jdbc.{GetResult, H2Profile, PositionedParameters, SetParameter}
 import slick.jdbc.H2Profile.api._
 import slick.lifted.{Rep, TableQuery, Tag}
 import com.twitter.util.{Await => TAwait}
@@ -19,6 +21,17 @@ import scala.concurrent.duration.Duration
 
 @RunWith(classOf[JUnitRunner])
 class DAOSpec extends Specification with Mockito {
+  "DbUUID" should {
+    "handle conversions" in new TestScope {
+      val randomUuid = UUID.randomUUID().toString
+      val test = DbUUID(randomUuid)
+      test.toString mustEqual randomUuid
+      implicit val getSupplierResult = GetResult(r => r.nextBytes())
+      val hexQ = sql"select CAST(REPLACE('#$randomUuid', '-','') as binary)".as[(Array[Byte])]
+      val result = scala.concurrent.Await.result(db.run(hexQ), Duration(20, TimeUnit.SECONDS))
+      result.head mustEqual test.binValue
+    }
+  }
 
   "DbLongOptId DAO" should {
     "generate id queries" in new TestScope {
@@ -91,6 +104,14 @@ class DAOSpec extends Specification with Mockito {
     }
   }
 
+  "DAO Joins" should {
+    "handle a join monad" in new TestScope  {
+      playerDao.queryJoinWithMonad() mustEqual
+        s"""select x2."id", x2."team_id", x2."name", x3."id", x3."name" from "player" x2, "team" x3
+           | where ? and (? and (x3."id" = x2."team_id"))""".stripMargin.replaceAll("\n", "")
+    }
+  }
+
   trait TestScope extends SlickScope with Team.Provider with Player.Provider {
     implicit val logger = new NoopBackend {}
     val teamDao = new TeamDao(
@@ -99,7 +120,8 @@ class DAOSpec extends Specification with Mockito {
     )
     val playerDao = new PlayerDAO(
       db,
-      playerSlick
+      playerSlick,
+      teamDao
     )
 
     implicit object SetUUID extends SetParameter[DbUUID] {
@@ -259,7 +281,8 @@ class DAOSpec extends Specification with Mockito {
 
   class PlayerDAO(
     override val db: DBWithLogging,
-    override val slickQuery: TableQuery[PlayerTable]
+    override val slickQuery: TableQuery[PlayerTable],
+    val teamDao: TeamDao
   ) extends H2DAO[PlayerTable, Player, DbUUID]
     with NoopBackend
     with DAOUUIDQuery[PlayerTable, Player, H2Profile] {
@@ -285,6 +308,14 @@ class DAOSpec extends Specification with Mockito {
       original: Player
     )(implicit ec: ExecutionContext): DBIOAction[FormValidatorMessageSeq, NoStream, Effect.Read] = {
       DBIOAction.successful(FormValidatorMessageSeq())
+    }
+
+    def queryJoinWithMonad(): String = {
+      val q = for {
+        player <- readQuery
+        team <- teamDao.readQuery if optLongCompare(team.id) equalsLong player.teamId
+      } yield (player, team)
+      q.result.statements.toList.head
     }
   }
 }
