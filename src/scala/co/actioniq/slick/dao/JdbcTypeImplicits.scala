@@ -6,7 +6,7 @@ import slick.jdbc.{H2Profile, JdbcProfile, MySQLProfile, PostgresProfile}
 
 class JdbcTypeImplicits[P <: JdbcProfile](val profile: P) {
   trait DbImplicits extends JdbcTypes[P] {
-    override def uuidJdbcType(): profile.DriverJdbcType[DbUUID] = {
+    override def uuidJdbcType: profile.DriverJdbcType[DbUUID] = {
       new profile.DriverJdbcType[DbUUID]() {
         def sqlType: Int = java.sql.Types.BINARY
         def setValue(v: DbUUID, p: PreparedStatement, idx: Int): Unit = p.setBytes(idx, v.binValue)
@@ -16,7 +16,7 @@ class JdbcTypeImplicits[P <: JdbcProfile](val profile: P) {
       }
     }
 
-    override def optLongJdbcType(): profile.DriverJdbcType[DbLongOptId] = {
+    override def optLongJdbcType: profile.DriverJdbcType[DbLongOptId] = {
       new profile.DriverJdbcType[DbLongOptId]() {
         def sqlType: Int = java.sql.Types.BIGINT
         def setValue(v: DbLongOptId, p: PreparedStatement, idx: Int): Unit = v.value match {
@@ -31,11 +31,10 @@ class JdbcTypeImplicits[P <: JdbcProfile](val profile: P) {
         override def hasLiteralForm: Boolean = false
       }
     }
-    protected implicit val dbBinArrayJdbcType = (new profile.JdbcTypes).byteArrayJdbcType
 
-    //protected implicit val timestampCol = {
-    //  (new profile.JdbcTypes).timestampJdbcType
-    //}
+    override def binArrayJdbcType: P#DriverJdbcType[Array[Byte]] = {
+      new (profile.JdbcTypes).byteArrayJdbcType
+    }
   }
 }
 
@@ -46,10 +45,12 @@ object JdbcTypeImplicits {
 }
 
 trait JdbcTypes [P <: JdbcProfile]{
-  def uuidJdbcType(): P#DriverJdbcType[DbUUID]
-  def optLongJdbcType(): P#DriverJdbcType[DbLongOptId]
+  def uuidJdbcType: P#DriverJdbcType[DbUUID]
+  def optLongJdbcType: P#DriverJdbcType[DbLongOptId]
+  def binArrayJdbcType: P#DriverJdbcType[Array[Byte]]
   protected implicit val dbUuidJdbcType = uuidJdbcType
   protected implicit val dbOptLongJdbcType = optLongJdbcType
+  protected implicit val dbBinArrayJdbcType = binArrayJdbcType
 }
 
 

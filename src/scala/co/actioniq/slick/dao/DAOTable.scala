@@ -5,6 +5,8 @@ import java.sql.{PreparedStatement, ResultSet}
 import slick.jdbc.{H2Profile, JdbcProfile, MySQLProfile, PostgresProfile}
 import slick.lifted.{AbstractTable, Tag}
 
+import scala.reflect.ClassTag
+
 /**
   * A table that has an IDType for an ID
  *
@@ -45,3 +47,15 @@ abstract class H2DAOTable[V <: IdModel[I], I <: IdType](
   self: DAOTable.Table[V, I, H2Profile] =>
 }
 
+class DAODynamicProfileTable[P <: JdbcProfile] (
+  val profile: P,
+  val implicits: JdbcTypeImplicits[P]
+) {
+  abstract class DAOTable[V <: IdModel[I], I <: IdType](
+    tag: Tag,
+    tableName: String,
+    schemaName: Option[String] = None
+  ) extends profile.Table[V](tag, schemaName, tableName)
+    with IdTable[I]
+    with implicits.DbImplicits
+}
