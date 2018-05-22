@@ -31,9 +31,9 @@ class CompiledQuerySpec extends Specification with Mockito {
     }
     "handle surrounding input" in new TestScope {
       val query = dao.compiledQuerySurround(BoundedSeq100(Seq(id)))
-      val expectedQuery = """select "id", "name" from "persistedslick" where (? and ("id" in (""" +
+      val expectedQuery = """select "id", "name" from "persistedslick" where ("id" in (""" +
         questions +
-        "))) and ?"
+        ")) and ?"
       query.result.statements.head mustEqual expectedQuery
       val result = scala.concurrent.Await.result(db.run(query.result), Duration(20, SECONDS))
       result.size mustEqual 1
@@ -54,9 +54,9 @@ class CompiledQuerySpec extends Specification with Mockito {
       val questions200 = (1 to 200).map {_ =>
         "?"
       }.mkString(",")
-      val expectedQuery = """select "id", "name" from "persistedslick" where ? and ("id" in (""" +
+      val expectedQuery = """select "id", "name" from "persistedslick" where "id" in (""" +
         questions200 +
-        "))"
+        ")"
       query.result.statements.head mustEqual expectedQuery
       val result = scala.concurrent.Await.result(db.run(query.result), Duration(20, SECONDS))
       result.size mustEqual 1
@@ -68,9 +68,9 @@ class CompiledQuerySpec extends Specification with Mockito {
       val questions500 = (1 to 500).map {_ =>
         "?"
       }.mkString(",")
-      val expectedQuery = """select "id", "name" from "persistedslick" where ? and ("id" in (""" +
+      val expectedQuery = """select "id", "name" from "persistedslick" where "id" in (""" +
         questions500 +
-        "))"
+        ")"
       query.result.statements.head mustEqual expectedQuery
       val result = scala.concurrent.Await.result(db.run(query.result), Duration(20, SECONDS))
       result.size mustEqual 1
@@ -82,9 +82,9 @@ class CompiledQuerySpec extends Specification with Mockito {
       val questions1000 = (1 to 1000).map {_ =>
         "?"
       }.mkString(",")
-      val expectedQuery = """select "id", "name" from "persistedslick" where ? and ("id" in (""" +
+      val expectedQuery = """select "id", "name" from "persistedslick" where "id" in (""" +
         questions1000 +
-        "))"
+        ")"
       query.result.statements.head mustEqual expectedQuery
       val result = scala.concurrent.Await.result(db.run(query.result), Duration(20, SECONDS))
       result.size mustEqual 1
@@ -111,9 +111,9 @@ class CompiledQuerySpec extends Specification with Mockito {
     "handle 1 extra param" in new TestScope {
       val ids = (1 to 99).map(DbUUID(_)) :+ id
       val query = dao.getAppliedCompiledQueryInWithName(ids, "larry")
-      val expectedQuery = """select "id", "name" from "persistedslick" where (? and ("id" in (""" +
+      val expectedQuery = """select "id", "name" from "persistedslick" where ("id" in (""" +
         questions +
-        """))) and ("name" = ?)"""
+        """)) and ("name" = ?)"""
       query.result.statements.head mustEqual expectedQuery
     }
   }

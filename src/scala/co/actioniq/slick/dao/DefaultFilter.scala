@@ -15,6 +15,11 @@ trait DefaultFilter[T <: DAOTable.Table[V, I, P], V <: IdModel[I], I <: IdType, 
 
   protected type QueryWithFilter =
     Query[T, T#TableElementType, Seq]
+  // type alias for query
+  type QueryJoin[A, B] = Query[(T, A), (V, B), Seq]
+  type QueryJoinTwo[A, B, AA, BB] = Query[((T, A), AA), ((V, B), BB), Seq]
+  // type alias for left join query
+  type QueryLeftJoin[A, B] = Query[(T, Rep[Option[A]]), (V, Option[B]), Seq]
   protected val slickQuery: TableQuery[T]
   private var defaultFilters: List[T => Rep[Boolean]] = List()
   private var defaultOptFilters: List[T => Rep[Option[Boolean]]] = List()
@@ -40,6 +45,23 @@ trait DefaultFilter[T <: DAOTable.Table[V, I, P], V <: IdModel[I], I <: IdType, 
       case (Nil, _) => reduceOptFilters(t)
       case (_, Nil) => reduceFilters(t)
       case (_, _) => reduceFilters(t) && reduceOptFilters(t)
+    }
+  }
+
+  def applyDefaultFilters(query: QueryWithFilter): QueryWithFilter = {
+    (defaultFilters, defaultOptFilters) match {
+      case (Nil, Nil) => query
+      case (_, _) => query.filter(row => getDefaultFilters(row))
+    }
+  }
+  def applyDefaultFilters[A <: DAOTable.Table[B, _, P], B <: IdModel[_]](query: QueryJoin[A, B], other: DefaultFilter[A, B, _, P]): QueryJoin[A, B] = {
+    val left = (defaultFilters, defaultOptFilters) match {
+      case (Nil, Nil) => query
+      case (_, _) => query.filter(row => getDefaultFilters(row._1))
+    }
+    (other.defaultFilters, other.defaultOptFilters) match {
+      case (Nil, Nil) => left
+      case (_, _) => left.filter(row => other.getDefaultFilters(row._2))
     }
   }
 }

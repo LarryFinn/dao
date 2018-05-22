@@ -3,14 +3,14 @@ package co.actioniq.slick
 import java.util.UUID
 import java.util.concurrent.TimeUnit
 
-import co.actioniq.slick.dao.{DAOLongIdQuery, DAOUUIDQuery, DbLongOptId, DbUUID, FormValidatorMessageSeq, H2DAO, H2DAOTable, IdModel, JdbcTypeImplicits}
+import co.actioniq.slick.dao.{DAOLongIdQuery, DAOUUIDQuery, DbLongOptId, DbUUID, DefaultFilter, FormValidatorMessageSeq, H2DAO, H2DAOTable, IdModel, IdType, JdbcTypeImplicits}
 import co.actioniq.slick.logging.NoopBackend
 import co.actioniq.slick.OptionCompareOption._
 import org.junit.runner.RunWith
 import org.specs2.mock.Mockito
 import org.specs2.mutable.Specification
 import org.specs2.runner.JUnitRunner
-import slick.jdbc.{GetResult, H2Profile, PositionedParameters, SetParameter}
+import slick.jdbc.{GetResult, H2Profile, JdbcProfile, PositionedParameters, SetParameter}
 import slick.jdbc.H2Profile.api._
 import slick.lifted.{Rep, TableQuery, Tag}
 import com.twitter.util.{Await => TAwait}
@@ -107,8 +107,23 @@ class DAOSpec extends Specification with Mockito {
   "DAO Joins" should {
     "handle a join monad" in new TestScope  {
       playerDao.queryJoinWithMonad() mustEqual
-        s"""select x2."id", x2."team_id", x2."name", x3."id", x3."name" from "player" x2, "team" x3
-           | where ? and (? and (x3."id" = x2."team_id"))""".stripMargin.replaceAll("\n", "")
+        s"""select x2."id", x2."team_id", x2."name", x3."id", x3."name" from
+           | "player" x2, "team" x3 where x3."id" = x2."team_id"""".stripMargin.replaceAll("\n", "")
+    }
+    "handle a join explicit" in new TestScope  {
+      playerDao.queryJoinExplicit() mustEqual
+        s"""select x2."id", x2."team_id", x2."name", x3."id", x3."name" from "player" x2,
+           | "team" x3 where x3."id" = x2."team_id"""".stripMargin.replaceAll("\n", "")
+    }
+    "handle a join explicit with default filter" in new TestScope  {
+      larryPlayerDao.queryJoinExplicit() mustEqual
+        s"""select x2."id", x2."team_id", x2."name", x3."id", x3."name" from "player" x2, "team" x3 where
+           | (x2."name" = 'larry') and (x3."id" = x2."team_id")""".stripMargin.replaceAll("\n", "")
+    }
+    "handle a join explicit with two default filters" in new TestScope  {
+      doubleLarryPlayerDao.queryJoinExplicit() mustEqual
+        s"""select x2."id", x2."team_id", x2."name", x3."id", x3."name" from "player" x2, "team" x3 where
+           | ((x2."name" = 'larry') and (x3."name" = 'larry')) and (x3."id" = x2."team_id")""".stripMargin.replaceAll("\n", "")
     }
   }
 
@@ -123,6 +138,20 @@ class DAOSpec extends Specification with Mockito {
       playerSlick,
       teamDao
     )
+    val larryPlayerDao = new PlayerDAO(
+      db,
+      playerSlick,
+      teamDao
+    ) with FilterLarry[PlayerTable, Player, DbUUID]
+    val larryTeamDao = new TeamDao(
+      db,
+      teamSlick
+    ) with FilterLarry[TeamTable, Team, DbLongOptId]
+    val doubleLarryPlayerDao = new PlayerDAO(
+      db,
+      playerSlick,
+      larryTeamDao
+    ) with FilterLarry[PlayerTable, Player, DbUUID]
 
     implicit object SetUUID extends SetParameter[DbUUID] {
       def apply(v: DbUUID, pp: PositionedParameters) {
@@ -197,10 +226,10 @@ class DAOSpec extends Specification with Mockito {
   ) extends IdModel[DbLongOptId] with JdbcTypeImplicits.h2JdbcTypeImplicits.DbImplicits
 
   class TeamTable(tag: Tag)
-    extends H2DAOTable[Team, DbLongOptId](tag, "team") {
+    extends H2DAOTable[Team, DbLongOptId](tag, "team") with NameTable {
 
     override def id: Rep[DbLongOptId] = column[DbLongOptId]("id", O.AutoInc)
-    def name: Rep[String] = column[String]("name")
+    override def name: Rep[String] = column[String]("name")
 
     override def * = ( // scalastyle:ignore
       id,
@@ -257,11 +286,11 @@ class DAOSpec extends Specification with Mockito {
   ) extends IdModel[DbUUID] with JdbcTypeImplicits.h2JdbcTypeImplicits.DbImplicits
 
   class PlayerTable(tag: Tag)
-    extends H2DAOTable[Player, DbUUID](tag, "player") {
+    extends H2DAOTable[Player, DbUUID](tag, "player") with NameTable {
 
     override def id: Rep[DbUUID] = column[DbUUID]("id")
     def teamId: Rep[Long] = column[Long]("team_id")
-    def name: Rep[String] = column[String]("name")
+    override def name: Rep[String] = column[String]("name")
 
     override def * = ( // scalastyle:ignore
       id,
@@ -317,5 +346,28 @@ class DAOSpec extends Specification with Mockito {
       } yield (player, team)
       q.result.statements.toList.head
     }
+
+    def queryJoinExplicit(): String = {
+      applyDefaultFilters(
+        getSlickQuery
+          .join(teamDao.getSlickQuery)
+          .on((player, team) => optLongCompare(team.id) equalsLong player.teamId),
+        teamDao
+      ).result.statements.toList.head
+    }
+  }
+
+  trait NameTable {
+    def name: slick.lifted.Rep[String]
+  }
+
+  trait FilterLarry[T <: H2DAOTable[V, I]
+    with NameTable, V <: IdModel[I], I <: IdType]
+    extends DefaultFilter[T, V, I, H2Profile] {
+    protected val profile: JdbcProfile
+    protected val name: String = "larry"
+    import profile.api._ // scalastyle:ignore
+
+    addDefaultFilter(t => t.name === name)
   }
 }

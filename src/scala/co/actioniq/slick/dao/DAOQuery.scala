@@ -21,11 +21,6 @@ trait DAOQuery[T <: DAOTable.Table[V, I, P], V <: IdModel[I], I <: IdType, P <: 
 
   // Name of object, used for generic error messages like in update "id does not exist for $nameSingle"
   def nameSingle: String
-  // type alias for query
-  type QueryJoin[A, B] = Query[(T, A), (V, B), Seq]
-  type QueryJoinTwo[A, B, AA, BB] = Query[((T, A), AA), ((V, B), BB), Seq]
-  // type alias for left join query
-  type QueryLeftJoin[A, B] = Query[(T, Rep[Option[A]]), (V, Option[B]), Seq]
 
   /**
     * Build an inner join query between two daos
@@ -99,7 +94,7 @@ trait DAOQuery[T <: DAOTable.Table[V, I, P], V <: IdModel[I], I <: IdType, P <: 
     * @return
     */
   def readQuery: QueryWithFilter = {
-    slickQuery.filter(q => getDefaultFilters(q))
+    applyDefaultFilters(slickQuery)
   }
 
   /**
