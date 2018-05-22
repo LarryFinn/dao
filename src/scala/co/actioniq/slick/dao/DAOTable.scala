@@ -1,11 +1,9 @@
 package co.actioniq.slick.dao
 
-import java.sql.{PreparedStatement, ResultSet}
 
 import slick.jdbc.{H2Profile, JdbcProfile, MySQLProfile, PostgresProfile}
-import slick.lifted.{AbstractTable, Tag}
+import slick.lifted.Tag
 
-import scala.reflect.ClassTag
 
 /**
   * A table that has an IDType for an ID
