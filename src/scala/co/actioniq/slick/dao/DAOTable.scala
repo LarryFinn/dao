@@ -25,7 +25,8 @@ abstract class MySQLDAOTable[V <: IdModel[I], I <: IdType](
   tableName: String,
   schemaName: Option[String] = None
 ) extends MySQLProfile.Table[V](tag, schemaName, tableName)
-    with IdTable[I]{
+  with IdTable[I]
+  with JdbcTypeImplicits.mySQLJdbcTypeImplicits.DbImplicits {
   self: DAOTable.Table[V, I, MySQLProfile] =>
 }
 
@@ -34,7 +35,8 @@ abstract class PostgresDAOTable[V <: IdModel[I], I <: IdType](
   tableName: String,
   schemaName: Option[String] = None
 ) extends PostgresProfile.Table[V](tag, schemaName, tableName)
-    with IdTable[I]{
+  with IdTable[I]
+  with JdbcTypeImplicits.postgresJdbcTypeImplicits.DbImplicits {
   self: DAOTable.Table[V, I, PostgresProfile] =>
 }
 
@@ -43,7 +45,8 @@ abstract class H2DAOTable[V <: IdModel[I], I <: IdType](
   tableName: String,
   schemaName: Option[String] = None
 ) extends H2Profile.Table[V](tag, schemaName, tableName)
-  with IdTable[I] with JdbcTypeImplicits.h2JdbcTypeImplicits.DbImplicits {
+  with IdTable[I]
+  with JdbcTypeImplicits.h2JdbcTypeImplicits.DbImplicits {
   self: DAOTable.Table[V, I, H2Profile] =>
 }
 

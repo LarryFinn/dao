@@ -31,10 +31,6 @@ class JdbcTypeImplicits[P <: JdbcProfile](val profile: P) {
         override def hasLiteralForm: Boolean = false
       }
     }
-
-    override def binArrayJdbcType: P#DriverJdbcType[Array[Byte]] = {
-      new (profile.JdbcTypes).byteArrayJdbcType
-    }
   }
 }
 
@@ -47,10 +43,8 @@ object JdbcTypeImplicits {
 trait JdbcTypes [P <: JdbcProfile]{
   def uuidJdbcType: P#DriverJdbcType[DbUUID]
   def optLongJdbcType: P#DriverJdbcType[DbLongOptId]
-  def binArrayJdbcType: P#DriverJdbcType[Array[Byte]]
   protected implicit val dbUuidJdbcType = uuidJdbcType
   protected implicit val dbOptLongJdbcType = optLongJdbcType
-  protected implicit val dbBinArrayJdbcType = binArrayJdbcType
 }
 
 
