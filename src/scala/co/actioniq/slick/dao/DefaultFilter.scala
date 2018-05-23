@@ -48,21 +48,36 @@ trait DefaultFilter[T <: DAOTable.Table[V, I, P], V <: IdModel[I], I <: IdType, 
     }
   }
 
-  def applyDefaultFilters(query: QueryWithFilter): QueryWithFilter = {
+  def ifDefaultFiltersExist[R](exists: () => R, doesNotExist: () => R): R = {
     (defaultFilters, defaultOptFilters) match {
-      case (Nil, Nil) => query
-      case (_, _) => query.filter(row => getDefaultFilters(row))
+      case (Nil, Nil) => doesNotExist()
+      case (_, _) => exists()
     }
   }
+
+  def applyDefaultFilters(query: QueryWithFilter): QueryWithFilter = {
+    ifDefaultFiltersExist(
+      exists = () => query.filter(row => getDefaultFilters(row)),
+      doesNotExist = () => query
+    )
+  }
+
   def applyDefaultFilters[A <: DAOTable.Table[B, _, P], B <: IdModel[_]](query: QueryJoin[A, B], other: DefaultFilter[A, B, _, P]): QueryJoin[A, B] = {
-    val left = (defaultFilters, defaultOptFilters) match {
-      case (Nil, Nil) => query
-      case (_, _) => query.filter(row => getDefaultFilters(row._1))
-    }
-    (other.defaultFilters, other.defaultOptFilters) match {
-      case (Nil, Nil) => left
-      case (_, _) => left.filter(row => other.getDefaultFilters(row._2))
-    }
+    val left = ifDefaultFiltersExist(
+      exists = () => query.filter(row => getDefaultFilters(row._1)),
+      doesNotExist = () => query
+    )
+    other.ifDefaultFiltersExist(
+      exists = () => left.filter(row => other.getDefaultFilters(row._2)),
+      doesNotExist = () => left
+    )
+  }
+
+  def applyDefaultFiltersLeftJoin[A <: DAOTable.Table[B, _, P], B <: IdModel[_]](query: QueryLeftJoin[A, B]): QueryLeftJoin[A, B] = {
+    ifDefaultFiltersExist(
+      exists = () => query.filter(row => getDefaultFilters(row._1)),
+      doesNotExist = () => query
+    )
   }
 }
 

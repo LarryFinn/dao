@@ -40,8 +40,10 @@ trait DAOQuery[T <: DAOTable.Table[V, I, P], V <: IdModel[I], I <: IdType, P <: 
   ):
   QueryJoin[A, B]= {
     extraQueryOps(
-      slickQuery.join(other.getSlickQuery).on((mine, theirs) => on(mine, theirs))
-        .filter(f => getDefaultFilters(f._1) && other.getDefaultFilters(f._2))
+      applyDefaultFilters(
+        slickQuery.join(other.getSlickQuery).on((mine, theirs) => on(mine, theirs)),
+        other
+      )
     )
   }
 
@@ -83,8 +85,14 @@ trait DAOQuery[T <: DAOTable.Table[V, I, P], V <: IdModel[I], I <: IdType, P <: 
   ):
   QueryLeftJoin[A, B] = {
     extraQueryOps(
-      slickQuery.joinLeft(other.getSlickQuery).on((mine, theirs) => on(mine, theirs))
-        .filter(f => getDefaultFilters(f._1) && f._2.flatMap(theirs => other.getDefaultFilters(theirs)))
+      applyDefaultFiltersLeftJoin(
+        slickQuery.joinLeft(other.getSlickQuery).on((mine, theirs) => {
+          other.ifDefaultFiltersExist(
+            exists = () => on(mine, theirs) && other.getDefaultFilters(theirs),
+            doesNotExist = () => on(mine, theirs)
+          )
+        })
+      )
     )
   }
 

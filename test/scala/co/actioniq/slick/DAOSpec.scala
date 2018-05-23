@@ -13,7 +13,7 @@ import org.specs2.runner.JUnitRunner
 import slick.jdbc.{GetResult, H2Profile, JdbcProfile, PositionedParameters, SetParameter}
 import slick.jdbc.H2Profile.api._
 import slick.lifted.{Rep, TableQuery, Tag}
-import com.twitter.util.{Await => TAwait}
+import com.twitter.util.{Future, Await => TAwait}
 import slick.dbio.DBIOAction
 
 import scala.concurrent.ExecutionContext
@@ -104,7 +104,7 @@ class DAOSpec extends Specification with Mockito {
     }
   }
 
-  "DAO Joins" should {
+  "default filters with joins" should {
     "handle a join monad" in new TestScope  {
       playerDao.queryJoinWithMonad() mustEqual
         s"""select x2."id", x2."team_id", x2."name", x3."id", x3."name" from
@@ -124,6 +124,73 @@ class DAOSpec extends Specification with Mockito {
       doubleLarryPlayerDao.queryJoinExplicit() mustEqual
         s"""select x2."id", x2."team_id", x2."name", x3."id", x3."name" from "player" x2, "team" x3 where
            | ((x2."name" = 'larry') and (x3."name" = 'larry')) and (x3."id" = x2."team_id")""".stripMargin.replaceAll("\n", "")
+    }
+    "handle a left join explicit" in new TestScope  {
+      playerDao.queryLeftJoinExplicit() mustEqual
+        s"""select x2."id", x2."team_id", x2."name", x3."id", x3."id", x3."name" from "player" x2 left outer join
+           | "team" x3 on (x3."id" = x2."team_id") and ? where ?""".stripMargin.replaceAll("\n", "")
+    }
+    "handle a left join explicit with two default filters" in new TestScope  {
+      doubleLarryPlayerDao.queryLeftJoinExplicit() mustEqual
+        s"""select x2."id", x2."team_id", x2."name", x3."name", x3."id", x3."name" from "player" x2 left outer
+           | join "team" x3 on (x3."id" = x2."team_id") and (x3."name" = 'larry')
+           | where x2."name" = 'larry'""".stripMargin.replaceAll("\n", "")
+    }
+  }
+
+  "joins" should {
+    "handle a join without default filters" in new TestScope {
+      playerDao.innerJoinQuery() mustEqual
+        s"""select x2."id", x2."team_id", x2."name", x3."id", x3."name" from "player" x2, "team" x3
+           | where x3."id" = x2."team_id"""".stripMargin.replaceAll("\n", "")
+    }
+    "handle a join with default filter" in new TestScope {
+      larryPlayerDao.innerJoinQuery() mustEqual
+        s"""select x2."id", x2."team_id", x2."name", x3."id", x3."name" from "player" x2, "team" x3
+           | where (x2."name" = 'larry') and (x3."id" = x2."team_id")""".stripMargin.replaceAll("\n", "")
+    }
+    "handle a join with two default filters" in new TestScope {
+      doubleLarryPlayerDao.innerJoinQuery() mustEqual
+        s"""select x2."id", x2."team_id", x2."name", x3."id", x3."name" from "player" x2, "team" x3 where
+           | ((x2."name" = 'larry') and (x3."name" = 'larry')) and (x3."id" = x2."team_id")"""
+          .stripMargin.replaceAll("\n", "")
+    }
+    "handle a left join without default filters" in new TestScope {
+      playerDao.leftJoinQuery() mustEqual
+        s"""select x2."id", x2."team_id", x2."name", x3."id", x3."id", x3."name" from "player" x2 left
+           | outer join "team" x3 on x3."id" = x2."team_id"""".stripMargin.replaceAll("\n", "")
+    }
+    "handle a left join with default filter" in new TestScope {
+      larryPlayerDao.leftJoinQuery() mustEqual
+        s"""select x2."id", x2."team_id", x2."name", x3."id", x3."id", x3."name" from "player" x2 left outer join
+           | "team" x3 on x3."id" = x2."team_id" where x2."name" = 'larry'""".stripMargin.replaceAll("\n", "")
+    }
+    "handle a left join with two default filters" in new TestScope {
+      doubleLarryPlayerDao.leftJoinQuery() mustEqual
+        s"""select x2."id", x2."team_id", x2."name", x3."name", x3."id", x3."name" from "player" x2 left outer join
+           | "team" x3 on (x3."id" = x2."team_id") and (x3."name" = 'larry')
+           | where x2."name" = 'larry'""".stripMargin.replaceAll("\n", "")
+    }
+    "do a join" in new TestScope {
+      val players = TAwait.result(playerDao.innerJoin())
+      val larryAndTeam = players.filter(_._1.id == larryId)
+      larryAndTeam.size mustEqual 1
+      larryAndTeam.head._1.name mustEqual "larry"
+      larryAndTeam.head._2.name mustEqual "mets"
+      players.count(_._1.id == barryId) mustEqual 0
+    }
+    "do a left join" in new TestScope {
+      val players = TAwait.result(playerDao.leftJoin())
+      val larryAndTeam = players.filter(_._1.id == larryId)
+      larryAndTeam.size mustEqual 1
+      larryAndTeam.head._1.name mustEqual "larry"
+      larryAndTeam.head._2.get.name mustEqual "mets"
+      val barryAndTeam = players.filter(_._1.id == barryId)
+      barryAndTeam.size mustEqual 1
+      barryAndTeam.head._1.name mustEqual "barry"
+      barryAndTeam.head._2.isDefined must beFalse
+
+
     }
   }
 
@@ -200,7 +267,7 @@ class DAOSpec extends Specification with Mockito {
     protected val barry = sqlu"""
       insert into player
       (id, team_id, name)
-      values($barryId, 1, 'barry')
+      values($barryId, 20, 'barry')
     """
     scala.concurrent.Await.result(
       db.run(
@@ -344,7 +411,7 @@ class DAOSpec extends Specification with Mockito {
         player <- readQuery
         team <- teamDao.readQuery if optLongCompare(team.id) equalsLong player.teamId
       } yield (player, team)
-      q.result.statements.toList.head
+      q.result.statements.head
     }
 
     def queryJoinExplicit(): String = {
@@ -353,7 +420,37 @@ class DAOSpec extends Specification with Mockito {
           .join(teamDao.getSlickQuery)
           .on((player, team) => optLongCompare(team.id) equalsLong player.teamId),
         teamDao
-      ).result.statements.toList.head
+      ).result.statements.head
+    }
+
+    def queryLeftJoinExplicit(): String = {
+      getSlickQuery.joinLeft(teamDao.getSlickQuery)
+        .on((player, team) => optLongCompare(team.id).equalsLong(player.teamId) && teamDao.getDefaultFilters(team)).filter {
+        case (player: PlayerTable, team: Rep[Option[TeamTable]]) =>
+          getDefaultFilters(player)
+      }.result.statements.head
+    }
+
+    def innerJoin(): Future[Seq[(Player, Team)]] = {
+      readJoin[TeamTable, Team, DbLongOptId](teamDao, (player, team) => optLongCompare(team.id) equalsLong player.teamId)
+    }
+
+    def innerJoinQuery(): String = {
+      joinQuery[TeamTable, Team, DbLongOptId](teamDao, (player, team) => optLongCompare(team.id) equalsLong player.teamId)
+        .result.statements.head
+    }
+
+    def leftJoinQuery(): String = {
+      leftJoinQuery[TeamTable, Team, DbLongOptId](
+        teamDao,
+        (player, team) => optLongCompare(team.id) equalsLong player.teamId
+      ).result.statements.head
+    }
+    def leftJoin(): Future[Seq[(Player, Option[Team])]] = {
+      readLeftJoin[TeamTable, Team, DbLongOptId](
+        teamDao,
+        (player, team) => optLongCompare(team.id) equalsLong player.teamId
+      )
     }
   }
 
