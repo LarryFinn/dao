@@ -29,7 +29,7 @@ trait DAO[T <: DAOTable.Table[V, I, P], V <: IdModel[I], I <: IdType, P <: JdbcP
     * @tparam R result type
     * @return result
     */
-  protected def runTransaction[R](a: DBIOAction[R, NoStream, Effect.All]): Future[R] = {
+  protected def runTransactionFuture[R](a: DBIOAction[R, NoStream, Effect.All]): Future[R] = {
     db.run(a.transactionally)
   }
 
@@ -50,7 +50,7 @@ trait DAO[T <: DAOTable.Table[V, I, P], V <: IdModel[I], I <: IdType, P <: JdbcP
     extraQueryOps: QueryJoin[A, B] => QueryJoin[A, B] = (query: QueryJoin[A, B]) => query
   ): Future[Seq[(T#TableElementType, A#TableElementType)]]
   = {
-    runTransaction(readJoinAction[A, B, C](other, on, extraQueryOps))
+    runTransactionFuture(readJoinAction[A, B, C](other, on, extraQueryOps))
   }
 
   def readJoinTwoFuture[A <: DAOTable.Table[B, C, P], B <: IdModel[C], C <: IdType,
@@ -64,7 +64,7 @@ trait DAO[T <: DAOTable.Table[V, I, P], V <: IdModel[I], I <: IdType, P <: JdbcP
       = (query: QueryJoinTwo[A, B, AA, BB]) => query
   ): Future[Seq[(T#TableElementType, A#TableElementType, AA#TableElementType)]]
   = {
-    runTransaction(readJoinActionTwo[A, B, C, AA, BB, CC](
+    runTransactionFuture(readJoinActionTwo[A, B, C, AA, BB, CC](
       otherFirst,
       onFirst,
       otherSecond,
@@ -86,7 +86,7 @@ trait DAO[T <: DAOTable.Table[V, I, P], V <: IdModel[I], I <: IdType, P <: JdbcP
   (other: DAO[A, B, C, P], on: (T, A) => Rep[Option[Boolean]]):
   Future[Seq[(T#TableElementType, Option[A#TableElementType])]]
   = {
-    runTransaction(readLeftJoinAction[A, B, C](other, on))
+    runTransactionFuture(readLeftJoinAction[A, B, C](other, on))
   }
 
   /**
@@ -125,7 +125,7 @@ trait DAO[T <: DAOTable.Table[V, I, P], V <: IdModel[I], I <: IdType, P <: JdbcP
     extraQueryOps: (QueryWithFilter)=> QueryWithFilter = (query) => query
   ):
   Future[Seq[Z]] = {
-    runTransaction(readWithChildAction(other, filterChildOn, merge, extraQueryOps))
+    runTransactionFuture(readWithChildAction(other, filterChildOn, merge, extraQueryOps))
   }
 
   /**
@@ -134,7 +134,7 @@ trait DAO[T <: DAOTable.Table[V, I, P], V <: IdModel[I], I <: IdType, P <: JdbcP
     * @return future of seq of model
     */
   def readFuture(extraQueryOps: (QueryWithFilter)=> QueryWithFilter = (query) => query): Future[Seq[V]] = {
-    runTransaction(readAction(extraQueryOps))
+    runTransactionFuture(readAction(extraQueryOps))
   }
 
   /**
@@ -143,7 +143,7 @@ trait DAO[T <: DAOTable.Table[V, I, P], V <: IdModel[I], I <: IdType, P <: JdbcP
     * @return Future of option of model
     */
   def readByIdFuture(id: I): Future[Option[V]] = {
-    runTransaction(readByIdAction(id))
+    runTransactionFuture(readByIdAction(id))
   }
 
   /**
@@ -152,7 +152,7 @@ trait DAO[T <: DAOTable.Table[V, I, P], V <: IdModel[I], I <: IdType, P <: JdbcP
     * @return future of seq of model
     */
   def readByIdFuture(id: Set[I]): Future[Seq[V]] = {
-    runTransaction(readByIdAction(id))
+    runTransactionFuture(readByIdAction(id))
   }
 
   /**
@@ -161,7 +161,7 @@ trait DAO[T <: DAOTable.Table[V, I, P], V <: IdModel[I], I <: IdType, P <: JdbcP
     * @return future of model
     */
   def readByIdRequiredFuture(id: I): Future[V] = {
-    runTransaction(readByIdRequiredAction(id))
+    runTransactionFuture(readByIdRequiredAction(id))
   }
 
   /**
@@ -170,7 +170,7 @@ trait DAO[T <: DAOTable.Table[V, I, P], V <: IdModel[I], I <: IdType, P <: JdbcP
     * @return future of seq of models
     */
   def readByIdRequiredFuture(id: Set[I]): Future[Seq[V]] = {
-    runTransaction(readByIdRequiredAction(id))
+    runTransactionFuture(readByIdRequiredAction(id))
   }
 
   /**
@@ -179,7 +179,7 @@ trait DAO[T <: DAOTable.Table[V, I, P], V <: IdModel[I], I <: IdType, P <: JdbcP
     * @return future of id
     */
   def createFuture(input: V): Future[I] = {
-    runTransaction(createAction(processPreCreate(input), true))
+    runTransactionFuture(createAction(processPreCreate(input), true))
   }
 
   /**
@@ -192,7 +192,7 @@ trait DAO[T <: DAOTable.Table[V, I, P], V <: IdModel[I], I <: IdType, P <: JdbcP
       create <- createAction(processPreCreate(input))
       row <- readByIdAction(create).map(_.get)
     } yield processPostCreate(row)
-    runTransaction(actions)
+    runTransactionFuture(actions)
   }
 
   /**
@@ -201,7 +201,7 @@ trait DAO[T <: DAOTable.Table[V, I, P], V <: IdModel[I], I <: IdType, P <: JdbcP
     * @return future of set of ids
     */
   def createFuture(input: Seq[V]): Future[Seq[I]] = {
-    runTransaction(createAction(input.map(processPreCreate), true))
+    runTransactionFuture(createAction(input.map(processPreCreate), true))
   }
 
   /**
@@ -214,7 +214,7 @@ trait DAO[T <: DAOTable.Table[V, I, P], V <: IdModel[I], I <: IdType, P <: JdbcP
       create <- createAction(input.map(processPreCreate), true)
       rows <- readAction(query => idInSet(query, create))
     } yield rows.map(processPostCreate)
-    runTransaction(actions)
+    runTransactionFuture(actions)
   }
 
   /**
@@ -228,7 +228,7 @@ trait DAO[T <: DAOTable.Table[V, I, P], V <: IdModel[I], I <: IdType, P <: JdbcP
       processedInput = processPreUpdate(input, original)
       update <- updateAction(processedInput, true, original)
     } yield update
-    runTransaction(actions)
+    runTransactionFuture(actions)
   }
 
   /**
@@ -243,7 +243,7 @@ trait DAO[T <: DAOTable.Table[V, I, P], V <: IdModel[I], I <: IdType, P <: JdbcP
       update <- updateAction(processedInput, true, original)
       row <- readByIdAction(input.id).map(_.get)
     } yield processPostUpdate(row)
-    runTransaction(actions)
+    runTransactionFuture(actions)
   }
 
   /**
@@ -257,7 +257,7 @@ trait DAO[T <: DAOTable.Table[V, I, P], V <: IdModel[I], I <: IdType, P <: JdbcP
       updateId <- updateActionFunctional(id, toValidate = true, updateFn)
       row <- readByIdRequiredAction(updateId)
     } yield row
-    runTransaction(actions)
+    runTransactionFuture(actions)
   }
 
   /**
@@ -275,7 +275,7 @@ trait DAO[T <: DAOTable.Table[V, I, P], V <: IdModel[I], I <: IdType, P <: JdbcP
       updatedModels = updateFn(rows)
       update <- updateAction(updatedModels, toValidate = true, rows)
     } yield update
-    runTransaction(actions)
+    runTransactionFuture(actions)
   }
 
   /**
@@ -293,7 +293,7 @@ trait DAO[T <: DAOTable.Table[V, I, P], V <: IdModel[I], I <: IdType, P <: JdbcP
       }
       updates <- updateAction(processedInputs, true, originals)
     } yield updates
-    runTransaction(actions)
+    runTransactionFuture(actions)
   }
 
   /**
@@ -312,7 +312,7 @@ trait DAO[T <: DAOTable.Table[V, I, P], V <: IdModel[I], I <: IdType, P <: JdbcP
       updates <- updateAction(processedInputs, true, originals)
       rows <- readAction(query => idInSet(query, ids))
     } yield rows.map(processPostUpdate)
-    runTransaction(actions)
+    runTransactionFuture(actions)
   }
 
   /**
@@ -321,7 +321,7 @@ trait DAO[T <: DAOTable.Table[V, I, P], V <: IdModel[I], I <: IdType, P <: JdbcP
     * @return future of number of rows updated
     */
   def deleteFuture(inputId: I): Future[Int] = {
-    runTransaction(deleteAction(inputId))
+    runTransactionFuture(deleteAction(inputId))
   }
 
   /**
@@ -330,7 +330,7 @@ trait DAO[T <: DAOTable.Table[V, I, P], V <: IdModel[I], I <: IdType, P <: JdbcP
     * @return future of number of rows updated
     */
   def deleteFuture(inputIds: Seq[I]): Future[Seq[Int]] = {
-    runTransaction(deleteAction(inputIds))
+    runTransactionFuture(deleteAction(inputIds))
   }
 }
 

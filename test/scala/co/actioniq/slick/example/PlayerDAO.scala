@@ -100,6 +100,6 @@ class PlayerDAO(
       id <- createAction(input)
       update <- updateAction(input.copy(name = "Zarry"), false, Some(input))
     } yield id
-    runTransaction(actions)
+    runTransactionFuture(actions)
   }
 }
