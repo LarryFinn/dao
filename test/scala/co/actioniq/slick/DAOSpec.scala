@@ -3,10 +3,12 @@ package co.actioniq.slick
 import java.util.UUID
 import java.util.concurrent.TimeUnit
 
-import co.actioniq.slick.dao.{DAOLongIdQuery, DAOUUIDQuery, DbLongOptId, DbUUID, DefaultFilter, FormValidatorMessageSeq, H2DAO, H2DAOTable, IdModel, IdType, JdbcTypeImplicits}
-import co.actioniq.slick.logging.NoopBackend
+import co.actioniq.slick.dao.{DAOException, DAOLongIdQuery, DAOUUIDQuery, DbLongOptId, DbUUID, DefaultFilter, FormValidatorMessageSeq, H2DAO, H2DAOTable, IdModel, IdType, JdbcTypeImplicits}
+import co.actioniq.slick.logging.{LogEntry, NoopBackend, TransactionAction, TransactionLogger}
 import co.actioniq.slick.OptionCompareOption._
+import co.actioniq.slick.logging.TransactionAction.TransactionAction
 import org.junit.runner.RunWith
+import org.mockito.Mockito.{times, verify}
 import org.specs2.mock.Mockito
 import org.specs2.mutable.Specification
 import org.specs2.runner.JUnitRunner
@@ -22,7 +24,7 @@ import scala.concurrent.duration.Duration
 @RunWith(classOf[JUnitRunner])
 class DAOSpec extends Specification with Mockito {
   "DbUUID" should {
-    "handle conversions" in new TestScope {
+    "handle conversions" in new TestScope with NoopLoggerProvider {
       val randomUuid = UUID.randomUUID().toString
       val test = DbUUID(randomUuid)
       test.toString mustEqual randomUuid
@@ -34,7 +36,7 @@ class DAOSpec extends Specification with Mockito {
   }
 
   "DbLongOptId DAO" should {
-    "generate id queries" in new TestScope {
+    "generate id queries" in new TestScope with NoopLoggerProvider {
       val team = TAwait.result(teamDao.readById(DbLongOptId(1)))
       team.get.name mustEqual "mets"
       val teams = TAwait.result(teamDao.readById(Set(DbLongOptId(1), DbLongOptId(2))))
@@ -42,25 +44,25 @@ class DAOSpec extends Specification with Mockito {
       teams.head.name mustEqual "mets"
       teams.tail.head.name mustEqual "astros"
     }
-    "create and return id" in new TestScope {
+    "create and return id" in new TestScope with NoopLoggerProvider {
       val teamToInsert = Team(DbLongOptId(None), "Yanks")
       val id = TAwait.result(teamDao.create(teamToInsert))
       id.get mustEqual 4L
     }
-    "create and return multiple ids" in new TestScope {
+    "create and return multiple ids" in new TestScope with NoopLoggerProvider {
       val yanks = Team(DbLongOptId(None), "Yanks")
       val dodgers = Team(DbLongOptId(None), "Dodgers")
       val ids = TAwait.result(teamDao.create(Seq(yanks, dodgers)))
       ids must contain(DbLongOptId(4L), DbLongOptId(5L))
     }
-    "update by id" in new TestScope {
+    "update by id" in new TestScope with NoopLoggerProvider {
       val team = TAwait.result(teamDao.readById(DbLongOptId(1))).get
       val updateAndRead = teamDao.updateAndRead(team.copy(name = "Red Sox"))
       val newTeam = TAwait.result(updateAndRead)
       newTeam.id.get mustEqual 1L
       newTeam.name mustEqual "Red Sox"
     }
-    "delete by id" in new TestScope {
+    "delete by id" in new TestScope with NoopLoggerProvider {
       TAwait.result(teamDao.delete(DbLongOptId(1)))
       TAwait.result(teamDao.readById(DbLongOptId(1))) must beNone
       TAwait.result(teamDao.readById(DbLongOptId(2))) must beSome
@@ -68,20 +70,20 @@ class DAOSpec extends Specification with Mockito {
   }
 
   "DbUUID DAO" should {
-    "generate id queries" in new TestScope {
+    "generate id queries" in new TestScope with NoopLoggerProvider {
       val player = TAwait.result(playerDao.readById(larryId))
       player.get.name mustEqual "larry"
       val players = TAwait.result(playerDao.readById(Set(larryId, harryId)))
       players.size mustEqual 2
       players.map(_.name) must contain("harry", "larry")
     }
-    "create and return id" in new TestScope {
+    "create and return id" in new TestScope with NoopLoggerProvider {
       val playerId = DbUUID.randomDbUUID
       val playerToInsert = Player(playerId, 3L, "Mary")
       val id = TAwait.result(playerDao.create(playerToInsert))
       id mustEqual playerId
     }
-    "create and return multiple ids" in new TestScope {
+    "create and return multiple ids" in new TestScope with NoopLoggerProvider {
       val maryId = DbUUID.randomDbUUID
       val zarryId = DbUUID.randomDbUUID
       val marry = Player(maryId, 3L, "Mary")
@@ -89,7 +91,7 @@ class DAOSpec extends Specification with Mockito {
       val ids = TAwait.result(playerDao.create(Seq(marry, zarry)))
       ids must contain(maryId, zarryId)
     }
-    "update by id" in new TestScope {
+    "update by id" in new TestScope with NoopLoggerProvider {
       val player = TAwait.result(playerDao.readById(larryId)).get
       val updateAndRead = playerDao.updateAndRead(player.copy(name = "Mary"))
       val newPlayer = TAwait.result(updateAndRead)
@@ -97,7 +99,7 @@ class DAOSpec extends Specification with Mockito {
       newPlayer.name mustEqual "Mary"
       newPlayer.teamId mustEqual 1L
     }
-    "delete by id" in new TestScope {
+    "delete by id" in new TestScope with NoopLoggerProvider {
       TAwait.result(playerDao.delete(larryId))
       TAwait.result(playerDao.readById(larryId)) must beNone
       TAwait.result(playerDao.readById(harryId)) must beSome
@@ -105,32 +107,32 @@ class DAOSpec extends Specification with Mockito {
   }
 
   "default filters with joins" should {
-    "handle a join monad" in new TestScope  {
+    "handle a join monad" in new TestScope with NoopLoggerProvider  {
       playerDao.queryJoinWithMonad() mustEqual
         s"""select x2."id", x2."team_id", x2."name", x3."id", x3."name" from
            | "player" x2, "team" x3 where x3."id" = x2."team_id"""".stripMargin.replaceAll("\n", "")
     }
-    "handle a join explicit" in new TestScope  {
+    "handle a join explicit" in new TestScope with NoopLoggerProvider  {
       playerDao.queryJoinExplicit() mustEqual
         s"""select x2."id", x2."team_id", x2."name", x3."id", x3."name" from "player" x2,
            | "team" x3 where x3."id" = x2."team_id"""".stripMargin.replaceAll("\n", "")
     }
-    "handle a join explicit with default filter" in new TestScope  {
+    "handle a join explicit with default filter" in new TestScope with NoopLoggerProvider  {
       larryPlayerDao.queryJoinExplicit() mustEqual
         s"""select x2."id", x2."team_id", x2."name", x3."id", x3."name" from "player" x2, "team" x3 where
            | (x2."name" = 'larry') and (x3."id" = x2."team_id")""".stripMargin.replaceAll("\n", "")
     }
-    "handle a join explicit with two default filters" in new TestScope  {
+    "handle a join explicit with two default filters" in new TestScope with NoopLoggerProvider  {
       doubleLarryPlayerDao.queryJoinExplicit() mustEqual
         s"""select x2."id", x2."team_id", x2."name", x3."id", x3."name" from "player" x2, "team" x3 where
            | ((x2."name" = 'larry') and (x3."name" = 'larry')) and (x3."id" = x2."team_id")""".stripMargin.replaceAll("\n", "")
     }
-    "handle a left join explicit" in new TestScope  {
+    "handle a left join explicit" in new TestScope with NoopLoggerProvider  {
       playerDao.queryLeftJoinExplicit() mustEqual
         s"""select x2."id", x2."team_id", x2."name", x3."id", x3."id", x3."name" from "player" x2 left outer join
            | "team" x3 on (x3."id" = x2."team_id") and ? where ?""".stripMargin.replaceAll("\n", "")
     }
-    "handle a left join explicit with two default filters" in new TestScope  {
+    "handle a left join explicit with two default filters" in new TestScope with NoopLoggerProvider  {
       doubleLarryPlayerDao.queryLeftJoinExplicit() mustEqual
         s"""select x2."id", x2."team_id", x2."name", x3."name", x3."id", x3."name" from "player" x2 left outer
            | join "team" x3 on (x3."id" = x2."team_id") and (x3."name" = 'larry')
@@ -139,39 +141,39 @@ class DAOSpec extends Specification with Mockito {
   }
 
   "joins" should {
-    "handle a join without default filters" in new TestScope {
+    "handle a join without default filters" in new TestScope with NoopLoggerProvider {
       playerDao.innerJoinQuery() mustEqual
         s"""select x2."id", x2."team_id", x2."name", x3."id", x3."name" from "player" x2, "team" x3
            | where x3."id" = x2."team_id"""".stripMargin.replaceAll("\n", "")
     }
-    "handle a join with default filter" in new TestScope {
+    "handle a join with default filter" in new TestScope with NoopLoggerProvider {
       larryPlayerDao.innerJoinQuery() mustEqual
         s"""select x2."id", x2."team_id", x2."name", x3."id", x3."name" from "player" x2, "team" x3
            | where (x2."name" = 'larry') and (x3."id" = x2."team_id")""".stripMargin.replaceAll("\n", "")
     }
-    "handle a join with two default filters" in new TestScope {
+    "handle a join with two default filters" in new TestScope with NoopLoggerProvider {
       doubleLarryPlayerDao.innerJoinQuery() mustEqual
         s"""select x2."id", x2."team_id", x2."name", x3."id", x3."name" from "player" x2, "team" x3 where
            | ((x2."name" = 'larry') and (x3."name" = 'larry')) and (x3."id" = x2."team_id")"""
           .stripMargin.replaceAll("\n", "")
     }
-    "handle a left join without default filters" in new TestScope {
+    "handle a left join without default filters" in new TestScope with NoopLoggerProvider {
       playerDao.leftJoinQuery() mustEqual
         s"""select x2."id", x2."team_id", x2."name", x3."id", x3."id", x3."name" from "player" x2 left
            | outer join "team" x3 on x3."id" = x2."team_id"""".stripMargin.replaceAll("\n", "")
     }
-    "handle a left join with default filter" in new TestScope {
+    "handle a left join with default filter" in new TestScope with NoopLoggerProvider {
       larryPlayerDao.leftJoinQuery() mustEqual
         s"""select x2."id", x2."team_id", x2."name", x3."id", x3."id", x3."name" from "player" x2 left outer join
            | "team" x3 on x3."id" = x2."team_id" where x2."name" = 'larry'""".stripMargin.replaceAll("\n", "")
     }
-    "handle a left join with two default filters" in new TestScope {
+    "handle a left join with two default filters" in new TestScope with NoopLoggerProvider {
       doubleLarryPlayerDao.leftJoinQuery() mustEqual
         s"""select x2."id", x2."team_id", x2."name", x3."name", x3."id", x3."name" from "player" x2 left outer join
            | "team" x3 on (x3."id" = x2."team_id") and (x3."name" = 'larry')
            | where x2."name" = 'larry'""".stripMargin.replaceAll("\n", "")
     }
-    "do a join" in new TestScope {
+    "do a join" in new TestScope with NoopLoggerProvider {
       val players = TAwait.result(playerDao.innerJoin())
       val larryAndTeam = players.filter(_._1.id == larryId)
       larryAndTeam.size mustEqual 1
@@ -179,7 +181,7 @@ class DAOSpec extends Specification with Mockito {
       larryAndTeam.head._2.name mustEqual "mets"
       players.count(_._1.id == barryId) mustEqual 0
     }
-    "do a left join" in new TestScope {
+    "do a left join" in new TestScope with NoopLoggerProvider {
       val players = TAwait.result(playerDao.leftJoin())
       val larryAndTeam = players.filter(_._1.id == larryId)
       larryAndTeam.size mustEqual 1
@@ -189,13 +191,116 @@ class DAOSpec extends Specification with Mockito {
       barryAndTeam.size mustEqual 1
       barryAndTeam.head._1.name mustEqual "barry"
       barryAndTeam.head._2.isDefined must beFalse
-
-
     }
   }
+  "dao validator" should {
+    "validate creates" in new TestScope with NoopLoggerProvider {
+      val passed = for {
+        id <- teamDao.create(Team(id = DbLongOptId(None), name = "Marlins"))
+        id2 <- teamDao.create(Team(id = DbLongOptId(None), name = "Giants"))
+      } yield (id.get, id2.get)
+      TAwait.result(passed) mustEqual ((4, 5))
+      val failed = teamDao.create(Team(id = DbLongOptId(None), name = "mets"))
+      TAwait.result(failed) must throwA(new DAOException("Name should be unique"))
+    }
+    "validate updates" in new TestScope with NoopLoggerProvider {
+      TAwait.result(teamDao.create(Team(id=DbLongOptId(None), name="Marlins")))
+      val failed = teamDao.update(Team(id = DbLongOptId(1), name = "Harry"))
+      TAwait.result(failed) must throwA(new DAOException("Name should not be Harry"))
+    }
+  }
+  "log a create update delete" in new TestScope with MockLoggerProvider {
+    val input = Player(DbUUID.randomDbUUID, 1, "Warry")
+    var createModel: Option[LoggingModel] = None
+    var updateModel: Option[LoggingModel] = None
+    var deleteModel: Option[LoggingModel] = None
+    var flushCount = 0
+      tl.write(any[LoggingModel]) answers(input => {
+        val model = input.asInstanceOf[LoggingModel]
+        println("WRITE")
+        if (model.action == TransactionAction.create){
+          createModel = Some(model)
+        } else if (model.action == TransactionAction.update){
+          updateModel = Some(model)
+        } else if (model.action == TransactionAction.delete){
+          deleteModel = Some(model)
+        }
+      })
+      tl.flush() answers (v =>{
+        if (flushCount == 0) {
+          createModel must beSome
+          createModel.get.id mustEqual input.id
+          updateModel must beNone
+          createModel = None
+          flushCount = flushCount + 1
+        } else if (flushCount == 1) {
+          createModel must beNone
+          updateModel must beSome
+          updateModel.get.id mustEqual input.id
+          updateModel.get.name mustEqual "Zarry"
+          updateModel = None
+          flushCount = flushCount + 1
+        }
+        Unit
+      })
+    val createAndRead = TAwait.result(playerDao.createAndRead(input))
+    TAwait.result(playerDao.update(input.copy(name="Zarry")))
+    TAwait.result(playerDao.delete(createAndRead.id))
+    createModel must beNone
+    updateModel must beNone
+    deleteModel.get.id mustEqual input.id
+    verify(tl, times(3)).write(any[LoggingModel])
+    verify(tl, times(3)).flush()
+  }
 
-  trait TestScope extends SlickScope with Team.Provider with Player.Provider {
-    implicit val logger = new NoopBackend {}
+  "log two actions bundled" in new TestScope with MockLoggerProvider {
+    val input = Player(DbUUID.randomDbUUID, 1, "Warry")
+    var createModel: Option[LoggingModel] = None
+    var updateModel: Option[LoggingModel] = None
+    var flushCount = 0
+    tl.write(any[LoggingModel]) answers(input => {
+      val model = input.asInstanceOf[LoggingModel]
+      println("WRITE")
+      if (model.action == TransactionAction.create){
+        createModel = Some(model)
+      } else if (model.action == TransactionAction.update) {
+        updateModel = Some(model)
+      }
+    })
+    tl.flush() answers (v =>{
+      if (flushCount == 0) {
+        createModel must beSome
+        createModel.get.id mustEqual input.id
+        updateModel.get.id mustEqual input.id
+        updateModel.get.name mustEqual "Zarry"
+        createModel = None
+        updateModel = None
+        flushCount = flushCount + 1
+      }
+      Unit
+    })
+    TAwait.result(playerDao.createAndUpdate(input))
+    createModel must beNone
+    updateModel must beNone
+    verify(tl, times(2)).write(any[LoggingModel])
+    verify(tl, times(1)).flush()
+  }
+
+
+  trait LoggerProvider {
+    implicit val tl = transactionLogger
+    def transactionLogger: TransactionLogger
+  }
+
+  trait MockLoggerProvider extends LoggerProvider {
+    def transactionLogger: TransactionLogger = mock[TransactionLogger]
+  }
+
+  trait NoopLoggerProvider extends LoggerProvider {
+    def transactionLogger: TransactionLogger = new NoopBackend {}
+  }
+
+  trait TestScope extends SlickScope with Team.Provider with Player.Provider with LoggerProvider {
     val teamDao = new TeamDao(
       db,
       teamSlick
@@ -334,14 +439,20 @@ class DAOSpec extends Specification with Mockito {
     override def validateCreate(
       input: Team
     )(implicit ec: ExecutionContext): DBIOAction[FormValidatorMessageSeq, NoStream, Effect.Read] = {
-      DBIOAction.successful(FormValidatorMessageSeq())
+      val errors = FormValidatorMessageSeq()
+      for {
+        dupes <- readAction(q => q.filter(_.name === input.name))
+        _ = errors.assert(dupes.isEmpty, "Name should be unique")
+      } yield errors
     }
 
     override def validateUpdate(
       input: Team,
       original: Team
     )(implicit ec: ExecutionContext): DBIOAction[FormValidatorMessageSeq, NoStream, Effect.Read] = {
-      DBIOAction.successful(FormValidatorMessageSeq())
+      val errors = FormValidatorMessageSeq()
+      errors.assert(input.name != "Harry", "Name should not be Harry")
+      DBIO.successful(errors)
     }
   }
 
@@ -380,16 +491,20 @@ class DAOSpec extends Specification with Mockito {
     override val slickQuery: TableQuery[PlayerTable],
     val teamDao: TeamDao
   ) extends H2DAO[PlayerTable, Player, DbUUID]
-    with NoopBackend
     with DAOUUIDQuery[PlayerTable, Player, H2Profile] {
 
     override protected implicit val ec: ExecutionContext = ExecutionContext.Implicits.global
 
-    override protected def addCreateTransaction(id: DbUUID, input: Player): Unit = {}
+    override protected def addCreateTransaction(id: DbUUID, input: Player): Unit =
+      db.transactionLogger.write(LoggingModel(TransactionAction.create, id, input.name))
 
-    override protected def addUpdateTransaction(id: DbUUID, input: Player, original: Player): Unit = {}
+    override protected def addUpdateTransaction(id: DbUUID, input: Player, original: Player): Unit =
+    db.transactionLogger.write(LoggingModel(TransactionAction.update, id, input.name))
 
-    override protected def addDeleteTransaction(id: DbUUID, original: Player): Unit = {}
+    override protected def addDeleteTransaction(id: DbUUID, original: Player): Unit = {
+      db.transactionLogger.write(LoggingModel(TransactionAction.delete, id, original.name))
+      println("DELETE")
+    }
 
     override def nameSingle: String = ???
 
@@ -452,6 +567,14 @@ class DAOSpec extends Specification with Mockito {
         (player, team) => optLongCompare(team.id) equalsLong player.teamId
       )
     }
+
+    def createAndUpdate(input: Player): Future[DbUUID] = {
+      val actions = for {
+        id <- createAction(input)
+        update <- updateAction(input.copy(name = "Zarry"), false, Some(input))
+      } yield id
+      runTransaction(actions)
+    }
   }
 
   trait NameTable {
@@ -467,4 +590,6 @@ class DAOSpec extends Specification with Mockito {
 
     addDefaultFilter(t => t.name === name)
   }
+
+  case class LoggingModel(override val action: TransactionAction, id: DbUUID, name: String) extends LogEntry
 }
