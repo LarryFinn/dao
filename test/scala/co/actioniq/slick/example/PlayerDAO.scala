@@ -8,8 +8,10 @@ import slick.dbio.DBIOAction
 import slick.jdbc.H2Profile
 import slick.jdbc.H2Profile.api._
 import slick.lifted.{Rep, TableQuery}
+import slick.util.SlickMDCContext
 
 import scala.concurrent.ExecutionContext
+import scala.concurrent.{Future => SFuture}
 
 class PlayerDAO(
   override val db: DBWithLogging,
@@ -18,7 +20,7 @@ class PlayerDAO(
 ) extends H2DAO[PlayerTable, Player, DbUUID]
   with DAOUUIDQuery[PlayerTable, Player, H2Profile] {
 
-  override protected implicit val ec: ExecutionContext = ExecutionContext.Implicits.global
+  override protected implicit val ec: ExecutionContext = SlickMDCContext.Implicits.defaultContext
 
   override protected def addCreateTransaction(id: DbUUID, input: Player): Unit =
     db.transactionLogger.write(LoggingModel(TransactionAction.create, id, input.name))
@@ -28,7 +30,6 @@ class PlayerDAO(
 
   override protected def addDeleteTransaction(id: DbUUID, original: Player): Unit = {
     db.transactionLogger.write(LoggingModel(TransactionAction.delete, id, original.name))
-    println("DELETE")
   }
 
   override def nameSingle: String = ???
@@ -92,12 +93,14 @@ class PlayerDAO(
       (player, team) => optLongCompare(team.id) equalsLong player.teamId
     )
   }
-
   def createAndUpdate(input: Player): Future[DbUUID] = {
     val actions = for {
       id <- createAction(input)
       update <- updateAction(input.copy(name = "Zarry"), false, Some(input))
     } yield id
     runTransaction(actions)
+  }
+  def readScalaFuture(): SFuture[Seq[Player]] = {
+    db.run(readAction().transactionally)
   }
 }

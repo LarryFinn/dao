@@ -13,9 +13,12 @@ import org.specs2.mutable.Specification
 import org.specs2.runner.JUnitRunner
 import slick.jdbc.{GetResult, PositionedParameters, SetParameter}
 import slick.jdbc.H2Profile.api._
-import com.twitter.util.{Await => TAwait}
+import slick.util.SlickMDCContext.Implicits.defaultContext
+import com.twitter.util.{Future, Await => TAwait}
+import org.slf4j.MDC
 
 import scala.concurrent.duration.Duration
+import scala.concurrent.{Await, Future => SFuture}
 
 @RunWith(classOf[JUnitRunner])
 class DAOSpec extends Specification with Mockito {
@@ -30,6 +33,33 @@ class DAOSpec extends Specification with Mockito {
       result.head mustEqual test.binValue
     }
   }
+
+  "MDC Data" should {
+    "be maintained in DAO future" in new TestScope with NoopLoggerProvider {
+      args.execute(threadsNb = 8)
+      val mdcKey = "larry"
+      val mdcVal = "mdc wizzard"
+      MDC.put(mdcKey, mdcVal)
+      println(s"Thread count ${Runtime.getRuntime.availableProcessors}")
+      println(s"Thread ${Thread.currentThread().getName}")
+      val rows = playerDao.readScalaFuture().map { results =>
+        println(s"Thread ${Thread.currentThread().getName}")
+        MDC.get(mdcKey) mustEqual mdcVal
+        results
+      }.map { results =>
+        println(s"Thread ${Thread.currentThread().getName}")
+        MDC.get(mdcKey) mustEqual mdcVal
+        results
+      }.flatMap { results =>
+        MDC.get(mdcKey) mustEqual mdcVal
+        SFuture.successful(results)
+      }
+      println(s"Blocking? ${Thread.currentThread().getName}")
+      Await.result(rows, Duration(6, TimeUnit.SECONDS))
+      MDC.get(mdcKey) mustEqual mdcVal
+    }
+  }
+
 
   "DbLongOptId DAO" should {
     "generate id queries" in new TestScope with NoopLoggerProvider {
@@ -213,7 +243,6 @@ class DAOSpec extends Specification with Mockito {
     var flushCount = 0
       tl.write(any[LoggingModel]) answers(input => {
         val model = input.asInstanceOf[LoggingModel]
-        println("WRITE")
         if (model.action == TransactionAction.create){
           createModel = Some(model)
         } else if (model.action == TransactionAction.update){
@@ -256,7 +285,6 @@ class DAOSpec extends Specification with Mockito {
     var flushCount = 0
     tl.write(any[LoggingModel]) answers(input => {
       val model = input.asInstanceOf[LoggingModel]
-      println("WRITE")
       if (model.action == TransactionAction.create){
         createModel = Some(model)
       } else if (model.action == TransactionAction.update) {

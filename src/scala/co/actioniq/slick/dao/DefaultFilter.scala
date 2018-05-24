@@ -16,10 +16,10 @@ trait DefaultFilter[T <: DAOTable.Table[V, I, P], V <: IdModel[I], I <: IdType, 
   protected type QueryWithFilter =
     Query[T, T#TableElementType, Seq]
   // type alias for query
-  type QueryJoin[A, B] = Query[(T, A), (V, B), Seq]
-  type QueryJoinTwo[A, B, AA, BB] = Query[((T, A), AA), ((V, B), BB), Seq]
+  protected type QueryJoin[A, B] = Query[(T, A), (V, B), Seq]
+  protected type QueryJoinTwo[A, B, AA, BB] = Query[((T, A), AA), ((V, B), BB), Seq]
   // type alias for left join query
-  type QueryLeftJoin[A, B] = Query[(T, Rep[Option[A]]), (V, Option[B]), Seq]
+  protected type QueryLeftJoin[A, B] = Query[(T, Rep[Option[A]]), (V, Option[B]), Seq]
   protected val slickQuery: TableQuery[T]
   private var defaultFilters: List[T => Rep[Boolean]] = List()
   private var defaultOptFilters: List[T => Rep[Option[Boolean]]] = List()

@@ -9,11 +9,14 @@ import slick.util.AsyncExecutor.{PrioritizedRunnable, Priority, WithConnection}
 import scala.concurrent.{ExecutionContext, ExecutionContextExecutor}
 
 object SlickMDCContext {
-
   def fromThread(delegate: ExecutionContext): ExecutionContextExecutor = {
     new SlickMDCContext(delegate)
   }
-
+  object Implicits{
+    implicit lazy val defaultContext: ExecutionContext = {
+      SlickMDCContext.fromThread(scala.concurrent.ExecutionContext.Implicits.global)
+    }
+  }
 }
 
 /**
