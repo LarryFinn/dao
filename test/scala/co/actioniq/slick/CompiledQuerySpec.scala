@@ -1,10 +1,11 @@
 package co.actioniq.aiqslick
 
+import java.util.concurrent.TimeUnit
+
 import co.actioniq.slick.{DBWithLogging, SlickScope}
 import co.actioniq.slick.compiled.{BoundedSeq, BoundedSeq100, InSeqDbUUIDImplicits, SlickCompiledFunctionSingleton}
 import co.actioniq.slick.dao.{DAOUUIDQuery, DbUUID, FormValidatorMessageSeq, H2DAO, H2DAOTable, IdModel, JdbcTypeImplicits}
 import co.actioniq.slick.logging.NoopBackend
-import com.twitter.util.Await
 import org.junit.runner.RunWith
 import org.specs2.mock.Mockito
 import org.specs2.mutable.Specification
@@ -13,7 +14,7 @@ import slick.jdbc.{H2Profile, JdbcProfile}
 import slick.lifted.{AppliedCompiledFunction, CompiledFunction, CompiledStreamingExecutable, TableQuery, Tag}
 import slick.jdbc.H2Profile.api._
 
-import scala.concurrent.ExecutionContext
+import scala.concurrent.{Await, ExecutionContext}
 import scala.concurrent.duration.{Duration, SECONDS}
 
 @RunWith(classOf[JUnitRunner])
@@ -139,8 +140,8 @@ class CompiledQuerySpec extends Specification with Mockito {
       db,
       persistedSlick
     )
-    Await.result(dao.create(PersistedSlick(id, "larry")))
-    Await.result(dao.create(PersistedSlick(id2, "barry")))
+    Await.result(dao.create(PersistedSlick(id, "larry")), Duration(6, TimeUnit.SECONDS))
+    Await.result(dao.create(PersistedSlick(id2, "barry")), Duration(6, TimeUnit.SECONDS))
     val questions = (1 to 100).map {_ =>
       "?"
     }.mkString(",")

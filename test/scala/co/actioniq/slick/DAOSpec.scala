@@ -14,11 +14,10 @@ import org.specs2.runner.JUnitRunner
 import slick.jdbc.{GetResult, PositionedParameters, SetParameter}
 import slick.jdbc.H2Profile.api._
 import slick.util.SlickMDCContext.Implicits.defaultContext
-import com.twitter.util.{Future, Await => TAwait}
 import org.slf4j.MDC
 
 import scala.concurrent.duration.Duration
-import scala.concurrent.{Await, Future => SFuture}
+import scala.concurrent.{Await, Future}
 
 @RunWith(classOf[JUnitRunner])
 class DAOSpec extends Specification with Mockito {
@@ -29,7 +28,7 @@ class DAOSpec extends Specification with Mockito {
       test.toString mustEqual randomUuid
       implicit val getSupplierResult = GetResult(r => r.nextBytes())
       val hexQ = sql"select CAST(REPLACE('#$randomUuid', '-','') as binary)".as[(Array[Byte])]
-      val result = scala.concurrent.Await.result(db.run(hexQ), Duration(20, TimeUnit.SECONDS))
+      val result = awaitResult(db.run(hexQ))
       result.head mustEqual test.binValue
     }
   }
@@ -40,22 +39,17 @@ class DAOSpec extends Specification with Mockito {
       val mdcKey = "larry"
       val mdcVal = "mdc wizzard"
       MDC.put(mdcKey, mdcVal)
-      println(s"Thread count ${Runtime.getRuntime.availableProcessors}")
-      println(s"Thread ${Thread.currentThread().getName}")
-      val rows = playerDao.readScalaFuture().map { results =>
-        println(s"Thread ${Thread.currentThread().getName}")
+      val rows = playerDao.read().map { results =>
         MDC.get(mdcKey) mustEqual mdcVal
         results
       }.map { results =>
-        println(s"Thread ${Thread.currentThread().getName}")
         MDC.get(mdcKey) mustEqual mdcVal
         results
       }.flatMap { results =>
         MDC.get(mdcKey) mustEqual mdcVal
-        SFuture.successful(results)
+        Future.successful(results)
       }
-      println(s"Blocking? ${Thread.currentThread().getName}")
-      Await.result(rows, Duration(6, TimeUnit.SECONDS))
+      awaitResult(rows)
       MDC.get(mdcKey) mustEqual mdcVal
     }
   }
@@ -63,50 +57,50 @@ class DAOSpec extends Specification with Mockito {
 
   "DbLongOptId DAO" should {
     "generate id queries" in new TestScope with NoopLoggerProvider {
-      val team = TAwait.result(teamDao.readById(DbLongOptId(1)))
+      val team = awaitResult(teamDao.readById(DbLongOptId(1)))
       team.get.name mustEqual "mets"
-      val teams = TAwait.result(teamDao.readById(Set(DbLongOptId(1), DbLongOptId(2))))
+      val teams = awaitResult(teamDao.readById(Set(DbLongOptId(1), DbLongOptId(2))))
       teams.size mustEqual 2
       teams.head.name mustEqual "mets"
       teams.tail.head.name mustEqual "astros"
     }
     "create and return id" in new TestScope with NoopLoggerProvider {
       val teamToInsert = Team(DbLongOptId(None), "Yanks")
-      val id = TAwait.result(teamDao.create(teamToInsert))
+      val id = awaitResult(teamDao.create(teamToInsert))
       id.get mustEqual 4L
     }
     "create and return multiple ids" in new TestScope with NoopLoggerProvider {
       val yanks = Team(DbLongOptId(None), "Yanks")
       val dodgers = Team(DbLongOptId(None), "Dodgers")
-      val ids = TAwait.result(teamDao.create(Seq(yanks, dodgers)))
+      val ids = awaitResult(teamDao.create(Seq(yanks, dodgers)))
       ids must contain(DbLongOptId(4L), DbLongOptId(5L))
     }
     "update by id" in new TestScope with NoopLoggerProvider {
-      val team = TAwait.result(teamDao.readById(DbLongOptId(1))).get
+      val team = awaitResult(teamDao.readById(DbLongOptId(1))).get
       val updateAndRead = teamDao.updateAndRead(team.copy(name = "Red Sox"))
-      val newTeam = TAwait.result(updateAndRead)
+      val newTeam = awaitResult(updateAndRead)
       newTeam.id.get mustEqual 1L
       newTeam.name mustEqual "Red Sox"
     }
     "delete by id" in new TestScope with NoopLoggerProvider {
-      TAwait.result(teamDao.delete(DbLongOptId(1)))
-      TAwait.result(teamDao.readById(DbLongOptId(1))) must beNone
-      TAwait.result(teamDao.readById(DbLongOptId(2))) must beSome
+      awaitResult(teamDao.delete(DbLongOptId(1)))
+      awaitResult(teamDao.readById(DbLongOptId(1))) must beNone
+      awaitResult(teamDao.readById(DbLongOptId(2))) must beSome
     }
   }
 
   "DbUUID DAO" should {
     "generate id queries" in new TestScope with NoopLoggerProvider {
-      val player = TAwait.result(playerDao.readById(larryId))
+      val player = awaitResult(playerDao.readById(larryId))
       player.get.name mustEqual "larry"
-      val players = TAwait.result(playerDao.readById(Set(larryId, harryId)))
+      val players = awaitResult(playerDao.readById(Set(larryId, harryId)))
       players.size mustEqual 2
       players.map(_.name) must contain("harry", "larry")
     }
     "create and return id" in new TestScope with NoopLoggerProvider {
       val playerId = DbUUID.randomDbUUID
       val playerToInsert = Player(playerId, 3L, "Mary")
-      val id = TAwait.result(playerDao.create(playerToInsert))
+      val id = awaitResult(playerDao.create(playerToInsert))
       id mustEqual playerId
     }
     "create and return multiple ids" in new TestScope with NoopLoggerProvider {
@@ -114,21 +108,21 @@ class DAOSpec extends Specification with Mockito {
       val zarryId = DbUUID.randomDbUUID
       val marry = Player(maryId, 3L, "Mary")
       val zarry = Player(zarryId, 2L, "Zarry")
-      val ids = TAwait.result(playerDao.create(Seq(marry, zarry)))
+      val ids = awaitResult(playerDao.create(Seq(marry, zarry)))
       ids must contain(maryId, zarryId)
     }
     "update by id" in new TestScope with NoopLoggerProvider {
-      val player = TAwait.result(playerDao.readById(larryId)).get
+      val player = awaitResult(playerDao.readById(larryId)).get
       val updateAndRead = playerDao.updateAndRead(player.copy(name = "Mary"))
-      val newPlayer = TAwait.result(updateAndRead)
+      val newPlayer = awaitResult(updateAndRead)
       newPlayer.id mustEqual larryId
       newPlayer.name mustEqual "Mary"
       newPlayer.teamId mustEqual 1L
     }
     "delete by id" in new TestScope with NoopLoggerProvider {
-      TAwait.result(playerDao.delete(larryId))
-      TAwait.result(playerDao.readById(larryId)) must beNone
-      TAwait.result(playerDao.readById(harryId)) must beSome
+      awaitResult(playerDao.delete(larryId))
+      awaitResult(playerDao.readById(larryId)) must beNone
+      awaitResult(playerDao.readById(harryId)) must beSome
     }
   }
 
@@ -200,7 +194,7 @@ class DAOSpec extends Specification with Mockito {
            | where x2."name" = 'larry'""".stripMargin.replaceAll("\n", "")
     }
     "do a join" in new TestScope with NoopLoggerProvider {
-      val players = TAwait.result(playerDao.innerJoin())
+      val players = awaitResult(playerDao.innerJoin())
       val larryAndTeam = players.filter(_._1.id == larryId)
       larryAndTeam.size mustEqual 1
       larryAndTeam.head._1.name mustEqual "larry"
@@ -208,7 +202,7 @@ class DAOSpec extends Specification with Mockito {
       players.count(_._1.id == barryId) mustEqual 0
     }
     "do a left join" in new TestScope with NoopLoggerProvider {
-      val players = TAwait.result(playerDao.leftJoin())
+      val players = awaitResult(playerDao.leftJoin())
       val larryAndTeam = players.filter(_._1.id == larryId)
       larryAndTeam.size mustEqual 1
       larryAndTeam.head._1.name mustEqual "larry"
@@ -225,14 +219,14 @@ class DAOSpec extends Specification with Mockito {
         id <- teamDao.create(Team(id = DbLongOptId(None), name = "Marlins"))
         id2 <- teamDao.create(Team(id = DbLongOptId(None), name = "Giants"))
       } yield (id.get, id2.get)
-      TAwait.result(passed) mustEqual ((4, 5))
+      awaitResult(passed) mustEqual ((4, 5))
       val failed = teamDao.create(Team(id = DbLongOptId(None), name = "mets"))
-      TAwait.result(failed) must throwA(new DAOException("Name should be unique"))
+      awaitResult(failed) must throwA(new DAOException("Name should be unique"))
     }
     "validate updates" in new TestScope with NoopLoggerProvider {
-      TAwait.result(teamDao.create(Team(id=DbLongOptId(None), name="Marlins")))
+      awaitResult(teamDao.create(Team(id=DbLongOptId(None), name="Marlins")))
       val failed = teamDao.update(Team(id = DbLongOptId(1), name = "Harry"))
-      TAwait.result(failed) must throwA(new DAOException("Name should not be Harry"))
+      awaitResult(failed) must throwA(new DAOException("Name should not be Harry"))
     }
   }
   "log a create update delete" in new TestScope with MockLoggerProvider {
@@ -268,9 +262,9 @@ class DAOSpec extends Specification with Mockito {
         }
         Unit
       })
-    val createAndRead = TAwait.result(playerDao.createAndRead(input))
-    TAwait.result(playerDao.update(input.copy(name="Zarry")))
-    TAwait.result(playerDao.delete(createAndRead.id))
+    val createAndRead = awaitResult(playerDao.createAndRead(input))
+    awaitResult(playerDao.update(input.copy(name="Zarry")))
+    awaitResult(playerDao.delete(createAndRead.id))
     createModel must beNone
     updateModel must beNone
     deleteModel.get.id mustEqual input.id
@@ -303,7 +297,7 @@ class DAOSpec extends Specification with Mockito {
       }
       Unit
     })
-    TAwait.result(playerDao.createAndUpdate(input))
+    awaitResult(playerDao.createAndUpdate(input))
     createModel must beNone
     updateModel must beNone
     verify(tl, times(2)).write(any[LoggingModel])
@@ -398,7 +392,7 @@ class DAOSpec extends Specification with Mockito {
       (id, team_id, name)
       values($barryId, 20, 'barry')
     """
-    scala.concurrent.Await.result(
+    awaitResult(
       db.run(
         DBIO.seq(
           sqlMode,
@@ -411,8 +405,9 @@ class DAOSpec extends Specification with Mockito {
           harry,
           barry
         )
-      ),
-      Duration(20, TimeUnit.SECONDS)
+      )
     )
+
+    def awaitResult[R](future: Future[R]): R = Await.result(future, Duration(6, TimeUnit.SECONDS))
   }
 }

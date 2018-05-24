@@ -7,6 +7,7 @@ import slick.dbio.DBIOAction
 import slick.jdbc.H2Profile
 import slick.jdbc.H2Profile.api._
 import slick.lifted.TableQuery
+import slick.util.SlickMDCContext
 
 import scala.concurrent.ExecutionContext
 
@@ -19,7 +20,7 @@ class TeamDAO(
 
   def readByIdQueryStatement(id: DbLongOptId): String = readByIdQuery(id).result.statements.head
 
-  override protected implicit val ec: ExecutionContext = ExecutionContext.Implicits.global
+  override protected implicit val ec: ExecutionContext = SlickMDCContext.Implicits.defaultContext
 
   override protected def addCreateTransaction(id: DbLongOptId, input: Team): Unit = {}
 

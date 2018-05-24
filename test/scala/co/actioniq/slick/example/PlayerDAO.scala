@@ -3,7 +3,6 @@ package co.actioniq.slick.example
 import co.actioniq.slick.DBWithLogging
 import co.actioniq.slick.dao.{DAOUUIDQuery, DbLongOptId, DbUUID, FormValidatorMessageSeq, H2DAO}
 import co.actioniq.slick.logging.TransactionAction
-import com.twitter.util.Future
 import slick.dbio.DBIOAction
 import slick.jdbc.H2Profile
 import slick.jdbc.H2Profile.api._
@@ -11,7 +10,7 @@ import slick.lifted.{Rep, TableQuery}
 import slick.util.SlickMDCContext
 
 import scala.concurrent.ExecutionContext
-import scala.concurrent.{Future => SFuture}
+import scala.concurrent.Future
 
 class PlayerDAO(
   override val db: DBWithLogging,
@@ -99,8 +98,5 @@ class PlayerDAO(
       update <- updateAction(input.copy(name = "Zarry"), false, Some(input))
     } yield id
     runTransaction(actions)
-  }
-  def readScalaFuture(): SFuture[Seq[Player]] = {
-    db.run(readAction().transactionally)
   }
 }

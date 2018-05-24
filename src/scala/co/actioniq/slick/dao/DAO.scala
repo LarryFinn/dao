@@ -2,11 +2,9 @@ package co.actioniq.slick.dao
 
 
 import co.actioniq.slick.{DBWithLogging, OptLongCompare, OptionCompareOption, UUIDCompare}
-import co.actioniq.slick.dao.Implicit.scalaToTwitterConverter
-import com.twitter.util.Future
 import slick.jdbc.{H2Profile, JdbcProfile, MySQLProfile, PostgresProfile}
 
-import scala.concurrent.ExecutionContext
+import scala.concurrent.{ExecutionContext, Future}
 
 /**
   * Top of the DAO traits, this actually runs the actions in a transaction.  Most functions return a twitter future
