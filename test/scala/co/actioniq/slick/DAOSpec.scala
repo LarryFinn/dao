@@ -3,22 +3,18 @@ package co.actioniq.slick
 import java.util.UUID
 import java.util.concurrent.TimeUnit
 
-import co.actioniq.slick.dao.{DAOException, DAOLongIdQuery, DAOUUIDQuery, DbLongOptId, DbUUID, DefaultFilter, FormValidatorMessageSeq, H2DAO, H2DAOTable, IdModel, IdType, JdbcTypeImplicits}
-import co.actioniq.slick.logging.{LogEntry, NoopBackend, TransactionAction, TransactionLogger}
-import co.actioniq.slick.OptionCompareOption._
-import co.actioniq.slick.logging.TransactionAction.TransactionAction
+import co.actioniq.slick.dao.{DAOException, DbLongOptId, DbUUID}
+import co.actioniq.slick.logging.{NoopBackend, TransactionAction, TransactionLogger}
+import co.actioniq.slick.example.{FilterLarry, LoggingModel, Player, PlayerDAO, PlayerTable, Team, TeamDAO, TeamTable}
 import org.junit.runner.RunWith
 import org.mockito.Mockito.{times, verify}
 import org.specs2.mock.Mockito
 import org.specs2.mutable.Specification
 import org.specs2.runner.JUnitRunner
-import slick.jdbc.{GetResult, H2Profile, JdbcProfile, PositionedParameters, SetParameter}
+import slick.jdbc.{GetResult, PositionedParameters, SetParameter}
 import slick.jdbc.H2Profile.api._
-import slick.lifted.{Rep, TableQuery, Tag}
-import com.twitter.util.{Future, Await => TAwait}
-import slick.dbio.DBIOAction
+import com.twitter.util.{Await => TAwait}
 
-import scala.concurrent.ExecutionContext
 import scala.concurrent.duration.Duration
 
 @RunWith(classOf[JUnitRunner])
@@ -301,7 +297,7 @@ class DAOSpec extends Specification with Mockito {
   }
 
   trait TestScope extends SlickScope with Team.Provider with Player.Provider with LoggerProvider {
-    val teamDao = new TeamDao(
+    val teamDao = new TeamDAO(
       db,
       teamSlick
     )
@@ -315,7 +311,7 @@ class DAOSpec extends Specification with Mockito {
       playerSlick,
       teamDao
     ) with FilterLarry[PlayerTable, Player, DbUUID]
-    val larryTeamDao = new TeamDao(
+    val larryTeamDao = new TeamDAO(
       db,
       teamSlick
     ) with FilterLarry[TeamTable, Team, DbLongOptId]
@@ -391,205 +387,4 @@ class DAOSpec extends Specification with Mockito {
       Duration(20, TimeUnit.SECONDS)
     )
   }
-
-  case class Team(
-    override val id: DbLongOptId,
-    name: String
-  ) extends IdModel[DbLongOptId] with JdbcTypeImplicits.h2JdbcTypeImplicits.DbImplicits
-
-  class TeamTable(tag: Tag)
-    extends H2DAOTable[Team, DbLongOptId](tag, "team") with NameTable {
-
-    override def id: Rep[DbLongOptId] = column[DbLongOptId]("id", O.AutoInc)
-    override def name: Rep[String] = column[String]("name")
-
-    override def * = ( // scalastyle:ignore
-      id,
-      name
-    ) <> (Team.tupled, Team.unapply)
-  }
-
-  object Team {
-    trait Provider {
-      private val creator = (tag: Tag) => new TeamTable(tag)
-      val teamSlick = new TableQuery[TeamTable](creator)
-    }
-    def tupled = (Team.apply _).tupled // scalastyle:ignore
-  }
-
-  class TeamDao(
-    override val db: DBWithLogging,
-    override val slickQuery: TableQuery[TeamTable]
-  ) extends H2DAO[TeamTable, Team, DbLongOptId]
-    with NoopBackend
-    with DAOLongIdQuery[TeamTable, Team, H2Profile] {
-
-    def readByIdQueryStatement(id: DbLongOptId): String = readByIdQuery(id).result.statements.head
-
-    override protected implicit val ec: ExecutionContext = ExecutionContext.Implicits.global
-
-    override protected def addCreateTransaction(id: DbLongOptId, input: Team): Unit = {}
-
-    override protected def addUpdateTransaction(id: DbLongOptId, input: Team, original: Team): Unit = {}
-
-    override protected def addDeleteTransaction(id: DbLongOptId, original: Team): Unit = {}
-
-    override def nameSingle: String = ???
-
-    override def validateCreate(
-      input: Team
-    )(implicit ec: ExecutionContext): DBIOAction[FormValidatorMessageSeq, NoStream, Effect.Read] = {
-      val errors = FormValidatorMessageSeq()
-      for {
-        dupes <- readAction(q => q.filter(_.name === input.name))
-        _ = errors.assert(dupes.isEmpty, "Name should be unique")
-      } yield errors
-    }
-
-    override def validateUpdate(
-      input: Team,
-      original: Team
-    )(implicit ec: ExecutionContext): DBIOAction[FormValidatorMessageSeq, NoStream, Effect.Read] = {
-      val errors = FormValidatorMessageSeq()
-      errors.assert(input.name != "Harry", "Name should not be Harry")
-      DBIO.successful(errors)
-    }
-  }
-
-
-  case class Player(
-    override val id: DbUUID,
-    teamId: Long,
-    name: String
-  ) extends IdModel[DbUUID] with JdbcTypeImplicits.h2JdbcTypeImplicits.DbImplicits
-
-  class PlayerTable(tag: Tag)
-    extends H2DAOTable[Player, DbUUID](tag, "player") with NameTable {
-
-    override def id: Rep[DbUUID] = column[DbUUID]("id")
-    def teamId: Rep[Long] = column[Long]("team_id")
-    override def name: Rep[String] = column[String]("name")
-
-    override def * = ( // scalastyle:ignore
-      id,
-      teamId,
-      name
-    ) <> (Player.tupled, Player.unapply)
-
-  }
-
-  object Player {
-    trait Provider {
-      private val creator = (tag: Tag) => new PlayerTable(tag)
-      val playerSlick = new TableQuery[PlayerTable](creator)
-    }
-    def tupled = (Player.apply _).tupled // scalastyle:ignore
-  }
-
-  class PlayerDAO(
-    override val db: DBWithLogging,
-    override val slickQuery: TableQuery[PlayerTable],
-    val teamDao: TeamDao
-  ) extends H2DAO[PlayerTable, Player, DbUUID]
-    with DAOUUIDQuery[PlayerTable, Player, H2Profile] {
-
-    override protected implicit val ec: ExecutionContext = ExecutionContext.Implicits.global
-
-    override protected def addCreateTransaction(id: DbUUID, input: Player): Unit =
-      db.transactionLogger.write(LoggingModel(TransactionAction.create, id, input.name))
-
-    override protected def addUpdateTransaction(id: DbUUID, input: Player, original: Player): Unit =
-    db.transactionLogger.write(LoggingModel(TransactionAction.update, id, input.name))
-
-    override protected def addDeleteTransaction(id: DbUUID, original: Player): Unit = {
-      db.transactionLogger.write(LoggingModel(TransactionAction.delete, id, original.name))
-      println("DELETE")
-    }
-
-    override def nameSingle: String = ???
-
-    override def validateCreate(
-      input: Player
-    )(implicit ec: ExecutionContext): DBIOAction[FormValidatorMessageSeq, NoStream, Effect.Read] = {
-      DBIOAction.successful(FormValidatorMessageSeq())
-    }
-
-    override def validateUpdate(
-      input: Player,
-      original: Player
-    )(implicit ec: ExecutionContext): DBIOAction[FormValidatorMessageSeq, NoStream, Effect.Read] = {
-      DBIOAction.successful(FormValidatorMessageSeq())
-    }
-
-    def queryJoinWithMonad(): String = {
-      val q = for {
-        player <- readQuery
-        team <- teamDao.readQuery if optLongCompare(team.id) equalsLong player.teamId
-      } yield (player, team)
-      q.result.statements.head
-    }
-
-    def queryJoinExplicit(): String = {
-      applyDefaultFilters(
-        getSlickQuery
-          .join(teamDao.getSlickQuery)
-          .on((player, team) => optLongCompare(team.id) equalsLong player.teamId),
-        teamDao
-      ).result.statements.head
-    }
-
-    def queryLeftJoinExplicit(): String = {
-      getSlickQuery.joinLeft(teamDao.getSlickQuery)
-        .on((player, team) => optLongCompare(team.id).equalsLong(player.teamId) && teamDao.getDefaultFilters(team)).filter {
-        case (player: PlayerTable, team: Rep[Option[TeamTable]]) =>
-          getDefaultFilters(player)
-      }.result.statements.head
-    }
-
-    def innerJoin(): Future[Seq[(Player, Team)]] = {
-      readJoin[TeamTable, Team, DbLongOptId](teamDao, (player, team) => optLongCompare(team.id) equalsLong player.teamId)
-    }
-
-    def innerJoinQuery(): String = {
-      joinQuery[TeamTable, Team, DbLongOptId](teamDao, (player, team) => optLongCompare(team.id) equalsLong player.teamId)
-        .result.statements.head
-    }
-
-    def leftJoinQuery(): String = {
-      leftJoinQuery[TeamTable, Team, DbLongOptId](
-        teamDao,
-        (player, team) => optLongCompare(team.id) equalsLong player.teamId
-      ).result.statements.head
-    }
-    def leftJoin(): Future[Seq[(Player, Option[Team])]] = {
-      readLeftJoin[TeamTable, Team, DbLongOptId](
-        teamDao,
-        (player, team) => optLongCompare(team.id) equalsLong player.teamId
-      )
-    }
-
-    def createAndUpdate(input: Player): Future[DbUUID] = {
-      val actions = for {
-        id <- createAction(input)
-        update <- updateAction(input.copy(name = "Zarry"), false, Some(input))
-      } yield id
-      runTransaction(actions)
-    }
-  }
-
-  trait NameTable {
-    def name: slick.lifted.Rep[String]
-  }
-
-  trait FilterLarry[T <: H2DAOTable[V, I]
-    with NameTable, V <: IdModel[I], I <: IdType]
-    extends DefaultFilter[T, V, I, H2Profile] {
-    protected val profile: JdbcProfile
-    protected val name: String = "larry"
-    import profile.api._ // scalastyle:ignore
-
-    addDefaultFilter(t => t.name === name)
-  }
-
-  case class LoggingModel(override val action: TransactionAction, id: DbUUID, name: String) extends LogEntry
 }

@@ -6,6 +6,6 @@ junit_tests(name='aiqslick',
     '3rdparty/com/typesafe:slick',
     '3rdparty/com/twitter:bijection-util',
   ],
-  sources=globs('*.scala'),
+  sources=globs('*.scala', 'example/*.scala'),
   strict_deps=True,
 )
