@@ -15,7 +15,10 @@ import scala.util.control.NonFatal
 /**
   * Mostly copied from slick source code.  Modified to use MDC Context
   */
-object SlickMDCExecutor extends Logging {
+class DefaultSlickMDCExecutor extends SlickExecutor {
+  override def getSlickContext(delegate: ExecutionContext): SlickMDCContext = new SlickMDCContext(delegate)
+}
+trait SlickExecutor extends Logging with SlickMDCContext.Provider {
 
   def apply(
     name: String,
@@ -112,7 +115,7 @@ object SlickMDCExecutor extends Logging {
           executor.execute(command)
         }
       }
-      SlickMDCContext.fromThread(context)
+      getSlickContext(context)
     }
 
     private[this] def unregisterMbeans(): Unit = if (registerMbeans) {

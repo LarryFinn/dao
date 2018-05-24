@@ -2,7 +2,6 @@ package slick.util
 
 
 import co.actioniq.slick.context.ContextCopier
-import com.twitter.finagle.tracing.Trace
 import org.slf4j.MDC
 import slick.util.AsyncExecutor.{PrioritizedRunnable, Priority, WithConnection}
 
@@ -12,10 +11,13 @@ object SlickMDCContext {
   def fromThread(delegate: ExecutionContext): ExecutionContextExecutor = {
     new SlickMDCContext(delegate)
   }
-  object Implicits{
+  object Implicits {
     implicit lazy val defaultContext: ExecutionContext = {
       SlickMDCContext.fromThread(scala.concurrent.ExecutionContext.Implicits.global)
     }
+  }
+  trait Provider {
+    def getSlickContext(delegate: ExecutionContext): SlickMDCContext
   }
 }
 
@@ -24,7 +26,7 @@ object SlickMDCContext {
   * in the current thread. Actual execution is performed by a delegate ExecutionContext.
   */
 class SlickMDCContext(delegate: ExecutionContext)
-  extends ExecutionContextExecutor with ContextCopier {
+  extends ExecutionContextExecutor {
   def execute(runnable: Runnable): Unit = {
     val mdcContext = Option(MDC.getCopyOfContextMap)
     val copy = runnable match {
@@ -68,23 +70,15 @@ class PriorityRunnableProxy(
   }
   def priority: Priority = self.priority
   def run(): Unit = {
-    val traceIdOpt = traceIdFromMDC(mdcContext)
     // backup the callee MDC context
     val oldMDCContext = Option(MDC.getCopyOfContextMap)
     // Run the runnable with the captured context
-    setContextMap(mdcContext)
+    setContext(mdcContext)
     try {
-      if (traceIdOpt.isDefined) {
-        val traceId = traceIdOpt.get
-        Trace.letId(traceId) {
-          self.run()
-        }
-      } else {
-        self.run()
-      }
+      self.run()
     } finally {
       // restore the callee MDC context
-      setContextMap(oldMDCContext)
+      setContext(oldMDCContext)
     }
   }
 }

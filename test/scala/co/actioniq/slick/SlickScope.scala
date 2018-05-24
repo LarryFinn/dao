@@ -7,7 +7,7 @@ import com.typesafe.config.{Config, ConfigFactory}
 import org.specs2.specification.Scope
 import slick.jdbc.{JdbcBackend, JdbcDataSource}
 import slick.jdbc.JdbcBackend.Database
-import slick.util.{ClassLoaderUtil, SlickMDCExecutor}
+import slick.util.{ClassLoaderUtil, DefaultSlickMDCExecutor}
 
 trait SlickScope extends Scope {
   val uuid = UUID.randomUUID().toString.replaceAll("-", "")
@@ -39,7 +39,7 @@ trait SlickScope extends Scope {
     val numThreads = usedConfig.getInt("numThreads")
     val maxConnections = source.maxConnections.fold(numThreads*5)(identity)
     val registerMbeans = false
-    val executor = SlickMDCExecutor(
+    val executor = new DefaultSlickMDCExecutor().apply(
       poolName,
       numThreads,
       numThreads,
