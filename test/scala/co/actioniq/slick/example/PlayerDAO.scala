@@ -72,7 +72,10 @@ class PlayerDAO(
   }
 
   def innerJoin(): Future[Seq[(Player, Team)]] = {
-    readJoin[TeamTable, Team, DbLongOptId](teamDao, (player, team) => optLongCompare(team.id) equalsLong player.teamId)
+    readJoinFuture[TeamTable, Team, DbLongOptId](
+      teamDao,
+      (player, team) => optLongCompare(team.id) equalsLong player.teamId
+    )
   }
 
   def innerJoinQuery(): String = {
@@ -87,7 +90,7 @@ class PlayerDAO(
     ).result.statements.head
   }
   def leftJoin(): Future[Seq[(Player, Option[Team])]] = {
-    readLeftJoin[TeamTable, Team, DbLongOptId](
+    readLeftJoinFuture[TeamTable, Team, DbLongOptId](
       teamDao,
       (player, team) => optLongCompare(team.id) equalsLong player.teamId
     )

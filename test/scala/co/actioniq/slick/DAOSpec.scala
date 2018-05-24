@@ -39,7 +39,7 @@ class DAOSpec extends Specification with Mockito {
       val mdcKey = "larry"
       val mdcVal = "mdc wizzard"
       MDC.put(mdcKey, mdcVal)
-      val rows = playerDao.read().map { results =>
+      val rows = playerDao.readFuture().map { results =>
         MDC.get(mdcKey) mustEqual mdcVal
         results
       }.map { results =>
@@ -57,50 +57,50 @@ class DAOSpec extends Specification with Mockito {
 
   "DbLongOptId DAO" should {
     "generate id queries" in new TestScope with NoopLoggerProvider {
-      val team = awaitResult(teamDao.readById(DbLongOptId(1)))
+      val team = awaitResult(teamDao.readByIdFuture(DbLongOptId(1)))
       team.get.name mustEqual "mets"
-      val teams = awaitResult(teamDao.readById(Set(DbLongOptId(1), DbLongOptId(2))))
+      val teams = awaitResult(teamDao.readByIdFuture(Set(DbLongOptId(1), DbLongOptId(2))))
       teams.size mustEqual 2
       teams.head.name mustEqual "mets"
       teams.tail.head.name mustEqual "astros"
     }
     "create and return id" in new TestScope with NoopLoggerProvider {
       val teamToInsert = Team(DbLongOptId(None), "Yanks")
-      val id = awaitResult(teamDao.create(teamToInsert))
+      val id = awaitResult(teamDao.createFuture(teamToInsert))
       id.get mustEqual 4L
     }
     "create and return multiple ids" in new TestScope with NoopLoggerProvider {
       val yanks = Team(DbLongOptId(None), "Yanks")
       val dodgers = Team(DbLongOptId(None), "Dodgers")
-      val ids = awaitResult(teamDao.create(Seq(yanks, dodgers)))
+      val ids = awaitResult(teamDao.createFuture(Seq(yanks, dodgers)))
       ids must contain(DbLongOptId(4L), DbLongOptId(5L))
     }
-    "update by id" in new TestScope with NoopLoggerProvider {
-      val team = awaitResult(teamDao.readById(DbLongOptId(1))).get
-      val updateAndRead = teamDao.updateAndRead(team.copy(name = "Red Sox"))
-      val newTeam = awaitResult(updateAndRead)
+    "updateFuture by id" in new TestScope with NoopLoggerProvider {
+      val team = awaitResult(teamDao.readByIdFuture(DbLongOptId(1))).get
+      val updateFutureAndReadFuture = teamDao.updateAndReadFuture(team.copy(name = "Red Sox"))
+      val newTeam = awaitResult(updateFutureAndReadFuture)
       newTeam.id.get mustEqual 1L
       newTeam.name mustEqual "Red Sox"
     }
     "delete by id" in new TestScope with NoopLoggerProvider {
-      awaitResult(teamDao.delete(DbLongOptId(1)))
-      awaitResult(teamDao.readById(DbLongOptId(1))) must beNone
-      awaitResult(teamDao.readById(DbLongOptId(2))) must beSome
+      awaitResult(teamDao.deleteFuture(DbLongOptId(1)))
+      awaitResult(teamDao.readByIdFuture(DbLongOptId(1))) must beNone
+      awaitResult(teamDao.readByIdFuture(DbLongOptId(2))) must beSome
     }
   }
 
   "DbUUID DAO" should {
     "generate id queries" in new TestScope with NoopLoggerProvider {
-      val player = awaitResult(playerDao.readById(larryId))
+      val player = awaitResult(playerDao.readByIdFuture(larryId))
       player.get.name mustEqual "larry"
-      val players = awaitResult(playerDao.readById(Set(larryId, harryId)))
+      val players = awaitResult(playerDao.readByIdFuture(Set(larryId, harryId)))
       players.size mustEqual 2
       players.map(_.name) must contain("harry", "larry")
     }
     "create and return id" in new TestScope with NoopLoggerProvider {
       val playerId = DbUUID.randomDbUUID
       val playerToInsert = Player(playerId, 3L, "Mary")
-      val id = awaitResult(playerDao.create(playerToInsert))
+      val id = awaitResult(playerDao.createFuture(playerToInsert))
       id mustEqual playerId
     }
     "create and return multiple ids" in new TestScope with NoopLoggerProvider {
@@ -108,21 +108,21 @@ class DAOSpec extends Specification with Mockito {
       val zarryId = DbUUID.randomDbUUID
       val marry = Player(maryId, 3L, "Mary")
       val zarry = Player(zarryId, 2L, "Zarry")
-      val ids = awaitResult(playerDao.create(Seq(marry, zarry)))
+      val ids = awaitResult(playerDao.createFuture(Seq(marry, zarry)))
       ids must contain(maryId, zarryId)
     }
-    "update by id" in new TestScope with NoopLoggerProvider {
-      val player = awaitResult(playerDao.readById(larryId)).get
-      val updateAndRead = playerDao.updateAndRead(player.copy(name = "Mary"))
-      val newPlayer = awaitResult(updateAndRead)
+    "updateFuture by id" in new TestScope with NoopLoggerProvider {
+      val player = awaitResult(playerDao.readByIdFuture(larryId)).get
+      val updateFutureAndReadFuture = playerDao.updateAndReadFuture(player.copy(name = "Mary"))
+      val newPlayer = awaitResult(updateFutureAndReadFuture)
       newPlayer.id mustEqual larryId
       newPlayer.name mustEqual "Mary"
       newPlayer.teamId mustEqual 1L
     }
     "delete by id" in new TestScope with NoopLoggerProvider {
-      awaitResult(playerDao.delete(larryId))
-      awaitResult(playerDao.readById(larryId)) must beNone
-      awaitResult(playerDao.readById(harryId)) must beSome
+      awaitResult(playerDao.deleteFuture(larryId))
+      awaitResult(playerDao.readByIdFuture(larryId)) must beNone
+      awaitResult(playerDao.readByIdFuture(harryId)) must beSome
     }
   }
 
@@ -216,23 +216,23 @@ class DAOSpec extends Specification with Mockito {
   "dao validator" should {
     "validate creates" in new TestScope with NoopLoggerProvider {
       val passed = for {
-        id <- teamDao.create(Team(id = DbLongOptId(None), name = "Marlins"))
-        id2 <- teamDao.create(Team(id = DbLongOptId(None), name = "Giants"))
+        id <- teamDao.createFuture(Team(id = DbLongOptId(None), name = "Marlins"))
+        id2 <- teamDao.createFuture(Team(id = DbLongOptId(None), name = "Giants"))
       } yield (id.get, id2.get)
       awaitResult(passed) mustEqual ((4, 5))
-      val failed = teamDao.create(Team(id = DbLongOptId(None), name = "mets"))
+      val failed = teamDao.createFuture(Team(id = DbLongOptId(None), name = "mets"))
       awaitResult(failed) must throwA(new DAOException("Name should be unique"))
     }
-    "validate updates" in new TestScope with NoopLoggerProvider {
-      awaitResult(teamDao.create(Team(id=DbLongOptId(None), name="Marlins")))
-      val failed = teamDao.update(Team(id = DbLongOptId(1), name = "Harry"))
+    "validate updateFutures" in new TestScope with NoopLoggerProvider {
+      awaitResult(teamDao.createFuture(Team(id=DbLongOptId(None), name="Marlins")))
+      val failed = teamDao.updateFuture(Team(id = DbLongOptId(1), name = "Harry"))
       awaitResult(failed) must throwA(new DAOException("Name should not be Harry"))
     }
   }
-  "log a create update delete" in new TestScope with MockLoggerProvider {
+  "log a create updateFuture delete" in new TestScope with MockLoggerProvider {
     val input = Player(DbUUID.randomDbUUID, 1, "Warry")
     var createModel: Option[LoggingModel] = None
-    var updateModel: Option[LoggingModel] = None
+    var updateFutureModel: Option[LoggingModel] = None
     var deleteModel: Option[LoggingModel] = None
     var flushCount = 0
       tl.write(any[LoggingModel]) answers(input => {
@@ -240,7 +240,7 @@ class DAOSpec extends Specification with Mockito {
         if (model.action == TransactionAction.create){
           createModel = Some(model)
         } else if (model.action == TransactionAction.update){
-          updateModel = Some(model)
+          updateFutureModel = Some(model)
         } else if (model.action == TransactionAction.delete){
           deleteModel = Some(model)
         }
@@ -249,24 +249,24 @@ class DAOSpec extends Specification with Mockito {
         if (flushCount == 0) {
           createModel must beSome
           createModel.get.id mustEqual input.id
-          updateModel must beNone
+          updateFutureModel must beNone
           createModel = None
           flushCount = flushCount + 1
         } else if (flushCount == 1) {
           createModel must beNone
-          updateModel must beSome
-          updateModel.get.id mustEqual input.id
-          updateModel.get.name mustEqual "Zarry"
-          updateModel = None
+          updateFutureModel must beSome
+          updateFutureModel.get.id mustEqual input.id
+          updateFutureModel.get.name mustEqual "Zarry"
+          updateFutureModel = None
           flushCount = flushCount + 1
         }
         Unit
       })
-    val createAndRead = awaitResult(playerDao.createAndRead(input))
-    awaitResult(playerDao.update(input.copy(name="Zarry")))
-    awaitResult(playerDao.delete(createAndRead.id))
+    val createAndReadFuture = awaitResult(playerDao.createAndReadFuture(input))
+    awaitResult(playerDao.updateFuture(input.copy(name="Zarry")))
+    awaitResult(playerDao.deleteFuture(createAndReadFuture.id))
     createModel must beNone
-    updateModel must beNone
+    updateFutureModel must beNone
     deleteModel.get.id mustEqual input.id
     verify(tl, times(3)).write(any[LoggingModel])
     verify(tl, times(3)).flush()
@@ -275,31 +275,31 @@ class DAOSpec extends Specification with Mockito {
   "log two actions bundled" in new TestScope with MockLoggerProvider {
     val input = Player(DbUUID.randomDbUUID, 1, "Warry")
     var createModel: Option[LoggingModel] = None
-    var updateModel: Option[LoggingModel] = None
+    var updateFutureModel: Option[LoggingModel] = None
     var flushCount = 0
     tl.write(any[LoggingModel]) answers(input => {
       val model = input.asInstanceOf[LoggingModel]
       if (model.action == TransactionAction.create){
         createModel = Some(model)
       } else if (model.action == TransactionAction.update) {
-        updateModel = Some(model)
+        updateFutureModel = Some(model)
       }
     })
     tl.flush() answers (v =>{
       if (flushCount == 0) {
         createModel must beSome
         createModel.get.id mustEqual input.id
-        updateModel.get.id mustEqual input.id
-        updateModel.get.name mustEqual "Zarry"
+        updateFutureModel.get.id mustEqual input.id
+        updateFutureModel.get.name mustEqual "Zarry"
         createModel = None
-        updateModel = None
+        updateFutureModel = None
         flushCount = flushCount + 1
       }
       Unit
     })
     awaitResult(playerDao.createAndUpdate(input))
     createModel must beNone
-    updateModel must beNone
+    updateFutureModel must beNone
     verify(tl, times(2)).write(any[LoggingModel])
     verify(tl, times(1)).flush()
   }

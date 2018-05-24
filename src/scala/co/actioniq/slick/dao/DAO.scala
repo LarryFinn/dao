@@ -43,7 +43,7 @@ trait DAO[T <: DAOTable.Table[V, I, P], V <: IdModel[I], I <: IdType, P <: JdbcP
     * @tparam C type of other idtype
     * @return Future of Seq of (mine, theirs)
     */
-  def readJoin[A <: DAOTable.Table[B, C, P], B <: IdModel[C], C <: IdType]
+  def readJoinFuture[A <: DAOTable.Table[B, C, P], B <: IdModel[C], C <: IdType]
   (
     other: DAO[A, B, C, P],
     on: (T, A) => Rep[Option[Boolean]],
@@ -53,7 +53,7 @@ trait DAO[T <: DAOTable.Table[V, I, P], V <: IdModel[I], I <: IdType, P <: JdbcP
     runTransaction(readJoinAction[A, B, C](other, on, extraQueryOps))
   }
 
-  def readJoinTwo[A <: DAOTable.Table[B, C, P], B <: IdModel[C], C <: IdType,
+  def readJoinTwoFuture[A <: DAOTable.Table[B, C, P], B <: IdModel[C], C <: IdType,
   AA <: DAOTable.Table[BB, CC, P], BB <: IdModel[CC], CC <: IdType]
   (
     otherFirst: DAO[A, B, C, P],
@@ -82,7 +82,7 @@ trait DAO[T <: DAOTable.Table[V, I, P], V <: IdModel[I], I <: IdType, P <: JdbcP
     * @tparam C type of other idtype
     * @return future of Seq of (min, option(theirs))
     */
-  def readLeftJoin[A <: DAOTable.Table[B, C, P], B <: IdModel[C], C <: IdType]
+  def readLeftJoinFuture[A <: DAOTable.Table[B, C, P], B <: IdModel[C], C <: IdType]
   (other: DAO[A, B, C, P], on: (T, A) => Rep[Option[Boolean]]):
   Future[Seq[(T#TableElementType, Option[A#TableElementType])]]
   = {
@@ -117,7 +117,7 @@ trait DAO[T <: DAOTable.Table[V, I, P], V <: IdModel[I], I <: IdType, P <: JdbcP
     * @tparam Z return type, for example Seq[(V, Seq[B])]
     * @return
     */
-  def readWithChild[A <: DAOTable.Table[B, C, P], B <: IdModel[C], C <: IdType, Z]
+  def readWithChildFuture[A <: DAOTable.Table[B, C, P], B <: IdModel[C], C <: IdType, Z]
   (
     other: DAO[A, B, C, P],
     filterChildOn: (Seq[V], A) => Rep[Option[Boolean]],
@@ -133,7 +133,7 @@ trait DAO[T <: DAOTable.Table[V, I, P], V <: IdModel[I], I <: IdType, P <: JdbcP
     * @param extraQueryOps extra filters / limits
     * @return future of seq of model
     */
-  def read(extraQueryOps: (QueryWithFilter)=> QueryWithFilter = (query) => query): Future[Seq[V]] = {
+  def readFuture(extraQueryOps: (QueryWithFilter)=> QueryWithFilter = (query) => query): Future[Seq[V]] = {
     runTransaction(readAction(extraQueryOps))
   }
 
@@ -142,7 +142,7 @@ trait DAO[T <: DAOTable.Table[V, I, P], V <: IdModel[I], I <: IdType, P <: JdbcP
     * @param id object id
     * @return Future of option of model
     */
-  def readById(id: I): Future[Option[V]] = {
+  def readByIdFuture(id: I): Future[Option[V]] = {
     runTransaction(readByIdAction(id))
   }
 
@@ -151,7 +151,7 @@ trait DAO[T <: DAOTable.Table[V, I, P], V <: IdModel[I], I <: IdType, P <: JdbcP
     * @param id set of ids
     * @return future of seq of model
     */
-  def readById(id: Set[I]): Future[Seq[V]] = {
+  def readByIdFuture(id: Set[I]): Future[Seq[V]] = {
     runTransaction(readByIdAction(id))
   }
 
@@ -160,7 +160,7 @@ trait DAO[T <: DAOTable.Table[V, I, P], V <: IdModel[I], I <: IdType, P <: JdbcP
     * @param id object id
     * @return future of model
     */
-  def readByIdRequired(id: I): Future[V] = {
+  def readByIdRequiredFuture(id: I): Future[V] = {
     runTransaction(readByIdRequiredAction(id))
   }
 
@@ -169,7 +169,7 @@ trait DAO[T <: DAOTable.Table[V, I, P], V <: IdModel[I], I <: IdType, P <: JdbcP
     * @param id set of object ids
     * @return future of seq of models
     */
-  def readByIdRequired(id: Set[I]): Future[Seq[V]] = {
+  def readByIdRequiredFuture(id: Set[I]): Future[Seq[V]] = {
     runTransaction(readByIdRequiredAction(id))
   }
 
@@ -178,7 +178,7 @@ trait DAO[T <: DAOTable.Table[V, I, P], V <: IdModel[I], I <: IdType, P <: JdbcP
     * @param input model to create
     * @return future of id
     */
-  def create(input: V): Future[I] = {
+  def createFuture(input: V): Future[I] = {
     runTransaction(createAction(processPreCreate(input), true))
   }
 
@@ -187,7 +187,7 @@ trait DAO[T <: DAOTable.Table[V, I, P], V <: IdModel[I], I <: IdType, P <: JdbcP
     * @param input model to create
     * @return future of object persisted
     */
-  def createAndRead(input: V): Future[V] = {
+  def createAndReadFuture(input: V): Future[V] = {
     val actions = for {
       create <- createAction(processPreCreate(input))
       row <- readByIdAction(create).map(_.get)
@@ -200,7 +200,7 @@ trait DAO[T <: DAOTable.Table[V, I, P], V <: IdModel[I], I <: IdType, P <: JdbcP
     * @param input sequence of models
     * @return future of set of ids
     */
-  def create(input: Seq[V]): Future[Seq[I]] = {
+  def createFuture(input: Seq[V]): Future[Seq[I]] = {
     runTransaction(createAction(input.map(processPreCreate), true))
   }
 
@@ -209,7 +209,7 @@ trait DAO[T <: DAOTable.Table[V, I, P], V <: IdModel[I], I <: IdType, P <: JdbcP
     * @param input seq of objects to save
     * @return future of seq of objects saved
     */
-  def createAndRead(input: Seq[V]): Future[Seq[V]] = {
+  def createAndReadFuture(input: Seq[V]): Future[Seq[V]] = {
     val actions = for {
       create <- createAction(input.map(processPreCreate), true)
       rows <- readAction(query => idInSet(query, create))
@@ -222,7 +222,7 @@ trait DAO[T <: DAOTable.Table[V, I, P], V <: IdModel[I], I <: IdType, P <: JdbcP
     * @param input object to update
     * @return future of object id
     */
-  def update(input: V): Future[I] = {
+  def updateFuture(input: V): Future[I] = {
     val actions = for {
       original <- readByIdAction(input.id)
       processedInput = processPreUpdate(input, original)
@@ -236,7 +236,7 @@ trait DAO[T <: DAOTable.Table[V, I, P], V <: IdModel[I], I <: IdType, P <: JdbcP
     * @param input object to update
     * @return future of object persisted
     */
-  def updateAndRead(input: V): Future[V] = {
+  def updateAndReadFuture(input: V): Future[V] = {
     val actions = for {
       original <- updateGetOriginal(input.id)
       processedInput = processPreUpdate(input, original)
@@ -252,7 +252,7 @@ trait DAO[T <: DAOTable.Table[V, I, P], V <: IdModel[I], I <: IdType, P <: JdbcP
     * @param updateFn a function that updates the object
     * @return future of object persisted
     */
-  def updateAndRead(id: I, updateFn: V => V): Future[V] = {
+  def updateAndReadFuture(id: I, updateFn: V => V): Future[V] = {
     val actions = for {
       updateId <- updateActionFunctional(id, toValidate = true, updateFn)
       row <- readByIdRequiredAction(updateId)
@@ -266,7 +266,7 @@ trait DAO[T <: DAOTable.Table[V, I, P], V <: IdModel[I], I <: IdType, P <: JdbcP
     * @param updateFn a function that updates the object
     * @return future of object persisted
     */
-  def queryAndUpdate(
+  def queryAndUpdateFuture(
     queryOps: (QueryWithFilter) => QueryWithFilter,
     updateFn: Seq[V] => Seq[V]
   ): Future[Seq[I]] = {
@@ -283,7 +283,7 @@ trait DAO[T <: DAOTable.Table[V, I, P], V <: IdModel[I], I <: IdType, P <: JdbcP
     * @param input seq of models to persist
     * @return future seq of ids
     */
-  def update(input: Seq[V]): Future[Seq[I]] = {
+  def updateFuture(input: Seq[V]): Future[Seq[I]] = {
     val ids = input.map(_.id)
     val actions = for {
       originals <- readAction(query => idInSet(query, ids))
@@ -301,7 +301,7 @@ trait DAO[T <: DAOTable.Table[V, I, P], V <: IdModel[I], I <: IdType, P <: JdbcP
     * @param input seq of models to persist
     * @return future of seq of objects
     */
-  def updateAndRead(input: Seq[V]): Future[Seq[V]] = {
+  def updateAndReadFuture(input: Seq[V]): Future[Seq[V]] = {
     val ids = input.map(_.id)
     val actions = for {
       originals <- readAction(query => idInSet(query, ids))
@@ -320,7 +320,7 @@ trait DAO[T <: DAOTable.Table[V, I, P], V <: IdModel[I], I <: IdType, P <: JdbcP
     * @param inputId object id
     * @return future of number of rows updated
     */
-  def delete(inputId: I): Future[Int] = {
+  def deleteFuture(inputId: I): Future[Int] = {
     runTransaction(deleteAction(inputId))
   }
 
@@ -329,7 +329,7 @@ trait DAO[T <: DAOTable.Table[V, I, P], V <: IdModel[I], I <: IdType, P <: JdbcP
     * @param inputIds seq of object ids
     * @return future of number of rows updated
     */
-  def delete(inputIds: Seq[I]): Future[Seq[Int]] = {
+  def deleteFuture(inputIds: Seq[I]): Future[Seq[Int]] = {
     runTransaction(deleteAction(inputIds))
   }
 }

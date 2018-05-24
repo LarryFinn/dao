@@ -140,8 +140,8 @@ class CompiledQuerySpec extends Specification with Mockito {
       db,
       persistedSlick
     )
-    Await.result(dao.create(PersistedSlick(id, "larry")), Duration(6, TimeUnit.SECONDS))
-    Await.result(dao.create(PersistedSlick(id2, "barry")), Duration(6, TimeUnit.SECONDS))
+    Await.result(dao.createFuture(PersistedSlick(id, "larry")), Duration(6, TimeUnit.SECONDS))
+    Await.result(dao.createFuture(PersistedSlick(id2, "barry")), Duration(6, TimeUnit.SECONDS))
     val questions = (1 to 100).map {_ =>
       "?"
     }.mkString(",")
