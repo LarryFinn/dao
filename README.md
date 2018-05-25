@@ -90,7 +90,7 @@ the developer to implement default values / values that cannot be overridden onc
 Again, you need to mix in one of the DAO Id Query types of DAOLongIdQuery or DAOUUIDQuery
 
 ## Examples ##
-Check out [test/scala/co/actioniq/slick/example][test example]
+Check out [test example](test/scala/co/actioniq/slick/example)
 
 ## Recommendations ##
 Generally, it is a good idea to make some base DAOModel and DAOTable classes that you can reuse everywhere so
