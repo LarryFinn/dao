@@ -10,7 +10,14 @@ class JdbcTypeImplicits[P <: JdbcProfile](val profile: P) {
       new profile.DriverJdbcType[DbUUID]() {
         def sqlType: Int = java.sql.Types.BINARY
         def setValue(v: DbUUID, p: PreparedStatement, idx: Int): Unit = p.setBytes(idx, v.binValue)
-        def getValue(r: ResultSet, idx: Int): DbUUID = DbUUID(r.getBytes(idx))
+        def getValue(r: ResultSet, idx: Int): DbUUID = {
+          val value = r.getBytes(idx)
+          if (value == null) {
+            null // scalastyle:ignore
+          } else {
+            DbUUID(r.getBytes(idx))
+          }
+        }
         def updateValue(v: DbUUID, r: ResultSet, idx: Int): Unit = r.updateBytes(idx, v.binValue)
         override def hasLiteralForm: Boolean = false
       }
