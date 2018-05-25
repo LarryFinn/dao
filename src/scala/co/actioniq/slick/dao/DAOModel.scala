@@ -12,6 +12,12 @@ trait IdModel[I <: IdType] {
   def id: I
 }
 
+trait H2IdModel[I <: IdType] extends IdModel[I] with JdbcTypeImplicits.h2JdbcTypeImplicits.DbImplicits
+
+trait MySQLIdModel[I <: IdType] extends IdModel[I] with JdbcTypeImplicits.mySQLJdbcTypeImplicits.DbImplicits
+
+trait PostgresIdModel[I <: IdType] extends IdModel[I] with JdbcTypeImplicits.postgresJdbcTypeImplicits.DbImplicits
+
 
 
 

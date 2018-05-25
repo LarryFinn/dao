@@ -1,13 +1,13 @@
 package co.actioniq.slick.example
 
-import co.actioniq.slick.dao.{DbLongOptId, H2DAOTable, IdModel, JdbcTypeImplicits}
+import co.actioniq.slick.dao.{DbLongOptId, H2DAOTable, H2IdModel, IdModel, JdbcTypeImplicits}
 import slick.jdbc.H2Profile.api._
 import slick.lifted.{Rep, TableQuery, Tag}
 
 case class Team(
   override val id: DbLongOptId,
   name: String
-) extends IdModel[DbLongOptId] with JdbcTypeImplicits.h2JdbcTypeImplicits.DbImplicits
+) extends H2IdModel[DbLongOptId]
 
 class TeamTable(tag: Tag)
   extends H2DAOTable[Team, DbLongOptId](tag, "team") with NameTable {

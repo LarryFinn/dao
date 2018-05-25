@@ -1,6 +1,6 @@
 package co.actioniq.slick.example
 
-import co.actioniq.slick.dao.{DbUUID, H2DAOTable, IdModel, JdbcTypeImplicits}
+import co.actioniq.slick.dao.{DbUUID, H2DAOTable, H2IdModel, IdModel, JdbcTypeImplicits}
 import slick.jdbc.H2Profile.api._
 import slick.lifted.{Rep, Tag}
 
@@ -8,7 +8,7 @@ case class Player(
   override val id: DbUUID,
   teamId: Long,
   name: String
-) extends IdModel[DbUUID] with JdbcTypeImplicits.h2JdbcTypeImplicits.DbImplicits
+) extends H2IdModel[DbUUID]
 
 class PlayerTable(tag: Tag)
   extends H2DAOTable[Player, DbUUID](tag, "player") with NameTable {
