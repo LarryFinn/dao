@@ -108,3 +108,54 @@ that you don't need to remember what to mix in.  So you might make
   ) extends MySQLDAO[T, V, DbUUID] with DAOUUIDQuery[T, V, MySQLProfile] 
 ```
 
+## Advanced Features ##
+### Transaction Logging ###
+DAOs have hooks after any CREATE, UPDATE, or DELETE operation is ran.  These can be used to call the "write" method
+on your implementation of a TransactionLogger that gets attached to the DB instance variable.  For example:
+```
+  override protected def addCreateTransaction(id: DbUUID, input: Player): Unit =
+    db.transactionLogger.write(LoggingModel(TransactionAction.create, id, input.name))
+```
+Your TransactionLogger needs to implement the write operation and flush operation.  Flush is called after a transaction
+successfully commits.  You can look at or extend the LogginFile class.
+
+### Action Hooks ###
+In some situations you may want to pre process or post process data.  Perhaps a field's value should be
+derived from other fields or you want to hide a value.  You can implement any of these functions:
+```scala
+  def processPreCreate(input: V): V
+  def processPostCreate(input: V): V
+  def processPreUpdate(input: V, original: Option[V]): V
+  def processPostUpdate(input: V): V
+```
+`Pre` functions alter the data before it is used by DAO functions and `Post` afterwards
+
+### Compiled Queries ###
+Each time you run some Slick code, Slick converts that code path into a SQL query.  SOMETIMES this can actually be a
+slow process.  In rare cases it can take 100 or so milliseconds. Slick provides what are called "compiled queries", 
+which are something like prepared statements with placeholders. The DAO library has some helpers to build and 
+utilize compiled queries since their API within Slick can be somewhat terse 
+(http://slick.lightbend.com/doc/3.2.0/queries.html#compiled-queries).  
+
+- **SlickCompiledFunctionSingleton** - A trait to include with an object class to store compiled queries.  The trait
+has a simple singleton map so you can access queries by a keyword.  The main function provided is 
+`getOrInitCompiledQuery`, which allows you to get a compiled query or build it for the next time.
+
+- **getCompiledQuerySeq** - A function in the DAOQuery class that helps with generating compiled queries 
+for queries that utilize the "in" operator for an id field over a dynamic set of data.  This function works by
+generating queries for <= 100 ids, <= 200 ids, <=500 ids, and <= 1000 ids.  It currently does not support an `in` with 
+over 1000 inputs.
+
+### MDC ###
+Often you will want to enable query logging in slick for your application.  However, it is hard to align calls to
+queries.  Utilizing MDC (https://logback.qos.ch/manual/mdc.html), you can add a tracing identifier to your logs.  
+The problem is that MDC is thread local and Slick has its own threadpool.  To solve this you can use the 
+`DefaultSlickMDCExecutor` to create a slick executor pool when creating your Database instance.
+
+### Zipkin Tracing ###
+`ZipkinLogbackAppender` utilizes MDC and internal slick logging to log queries and their runtime to zipkin.  This 
+allows for more in-depth performance analysis.  
+
+
+
+
