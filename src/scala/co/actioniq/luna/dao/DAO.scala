@@ -190,7 +190,7 @@ trait DAO[T <: DAOTable.Table[V, I, P], V <: IdModel[I], I <: IdType, P <: JdbcP
   def createAndReadFuture(input: V): Future[V] = {
     val actions = for {
       create <- createAction(processPreCreate(input))
-      row <- readByIdAction(create).map(_.get)
+      row <- readByIdRequiredAction(create)
     } yield processPostCreate(row)
     runTransactionFuture(actions)
   }

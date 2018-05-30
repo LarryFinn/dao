@@ -14,7 +14,7 @@ scala_library(name='luna',
   strict_deps=True,
   provides = scala_artifact(
     org='co.actioniq',
-    name='slick',
+    name='luna',
     repo=local,
   )
 )

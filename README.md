@@ -1,5 +1,5 @@
 # Luna #
-Luna makes DAOs
+Luna makes Slick DAOs simple
 ## Introduction ##
 So I hear you want to interact with a database and you already use Slick or may want to use Slick.
 Slick provides:
