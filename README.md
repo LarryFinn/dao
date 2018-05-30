@@ -156,6 +156,30 @@ The problem is that MDC is thread local and Slick has its own threadpool.  To so
 `ZipkinLogbackAppender` utilizes MDC and internal slick logging to log queries and their runtime to zipkin.  This 
 allows for more in-depth performance analysis.  
 
+### Validations ###
+Often you want to validate data before storing it.  Sometimes you need to run some sort of database query to perform a 
+validation.  A common example is making sure that a "name" field is unique.  Typically you want to run these
+validations as part of a transaction.  The DAO classes are required to implement validateCreate and validateUpdate.  
+These get called in the create and update actions transactionally.  The functions have a return type of 
+`DBIOAction[FormValidatorMessageSeq]`.  The `FormValidatorMessageSeq` class is a mutable wrapper around a sequence of 
+FormValidatorMessages.  The DAO internals will run this function and see if there are any form validator messages.  If 
+so it will throw an exception.  FormValidatorMessageSeq has a helper method called assert to easily add form validator
+exceptions.  Example:
+```scala
+    val errors = FormValidatorMessageSeq()
+    for {
+      existingItems <- readAction(q => q.filter(_.name === input.name))
+      _ = assert(existingItems.isEmpty, s"Name ${input.name} already used")
+    } yield errors
+``` 
+If you don't want to validate anything, just return a noop
+```scala
+  override def validateCreate(
+    input: Player
+  )(implicit ec: ExecutionContext): DBIOAction[FormValidatorMessageSeq, NoStream, Effect.Read] = {
+    DBIOAction.successful(FormValidatorMessageSeq())
+  }
+```
 
 
 
